@@ -24,6 +24,7 @@ class Ilan(Base):
     ilan_turu = Column(String(100))
     metin = Column(Text) # Uzun metin
     link = Column(String(500))
+    yayin_tarihi = Column(String(50)) # İlanın yayınlanma tarihi
     eklenme_tarihi = Column(DateTime, default=func.now())
 
     # İlişki: Bir ilanın birden fazla analiz edilmiş borçlusu olabilir

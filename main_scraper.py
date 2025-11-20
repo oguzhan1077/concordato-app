@@ -111,7 +111,7 @@ def veri_cek_ve_kaydet():
                 
                 detaylar = {
                     "ilan_no": gecici_ilan_no, "sehir": "", "ilce": "", 
-                    "ilan_turu": "", "metin": "", "kurum": "", "baslik": ""
+                    "ilan_turu": "", "metin": "", "kurum": "", "baslik": "", "yayin_tarihi": ""
                 }
                 
                 # 1. Başlığı Al (Öncelikli)
@@ -135,6 +135,19 @@ def veri_cek_ve_kaydet():
                             elif "İlan Türü" in baslik_etiket: detaylar["ilan_turu"] = deger
                             elif "İlan Sahibi" in baslik_etiket: detaylar["kurum"] = deger
                         except: continue
+                    
+                    # Yayın tarihini bul (Her iki formatta da <b> içinde)
+                    for li in bilgi_listesi:
+                        try:
+                            li_text = li.text.lower()
+                            # Yayın ile ilgili kelimeler varsa
+                            if "yayın" in li_text or "yayım" in li_text:
+                                tarih_bold = li.find_element(By.TAG_NAME, "b")
+                                tarih = tarih_bold.text.strip().replace(":", "").strip()
+                                detaylar["yayin_tarihi"] = tarih
+                                break
+                        except:
+                            continue
                 except: pass
                 
                 # 3. Metin
@@ -156,7 +169,8 @@ def veri_cek_ve_kaydet():
                             kurum=detaylar["kurum"],
                             ilan_turu=detaylar["ilan_turu"],
                             metin=detaylar["metin"],
-                            link=link
+                            link=link,
+                            yayin_tarihi=detaylar["yayin_tarihi"]
                         )
                         session.add(yeni_ilan)
                         session.commit()
