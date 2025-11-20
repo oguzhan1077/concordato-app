@@ -6,4 +6,6 @@ flask-sqlalchemy
 selenium
 webdriver-manager
 mysql-connector-python
-
+streamlit
+pandas
+plotly
