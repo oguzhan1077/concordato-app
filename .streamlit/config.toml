@@ -1,0 +1,10 @@
+[theme]
+primaryColor = "#FF4B4B"
+backgroundColor = "#0E1117"
+secondaryBackgroundColor = "#262730"
+textColor = "#FAFAFA"
+font = "sans serif"
+widgetBackgroundColor = "#262730"
+widgetBorderColor = "#676A79"
+widgetBorderRadius = "0.5rem"
+skeletonBackgroundColor = "#262730"

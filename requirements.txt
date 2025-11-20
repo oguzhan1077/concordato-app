@@ -9,3 +9,4 @@ mysql-connector-python
 streamlit
 pandas
 plotly
+openpyxl
