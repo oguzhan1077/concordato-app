@@ -3,6 +3,10 @@ from sqlalchemy.orm import Session
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from datetime import timedelta
 from jose import JWTError, jwt
+from fastapi_limiter.depends import RateLimiter
+import redis.asyncio as redis
+from fastapi_limiter import FastAPILimiter
+import os
 from . import models, schemas, security, database
 
 router = APIRouter()
@@ -25,8 +29,20 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
     try:
         payload = jwt.decode(token, security.SECRET_KEY, algorithms=[security.ALGORITHM])
         email: str = payload.get("sub")
+        jti: str = payload.get("jti")
+        
         if email is None:
             raise credentials_exception
+            
+        # Redis'ten blacklist kontrolü
+        redis_url = os.getenv("REDIS_URL", "redis://redis:6379/0")
+        redis_conn = redis.from_url(redis_url, encoding="utf-8", decode_responses=True)
+        
+        if jti:
+            is_blacklisted = await redis_conn.get(f"blacklist:{jti}")
+            if is_blacklisted:
+                raise credentials_exception
+        
         token_data = schemas.TokenData(email=email)
     except JWTError:
         raise credentials_exception
@@ -36,7 +52,37 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
         raise credentials_exception
     return user
 
-@router.post("/register", response_model=schemas.User)
+@router.post("/logout")
+async def logout(token: str = Depends(oauth2_scheme)):
+    try:
+        payload = jwt.decode(token, security.SECRET_KEY, algorithms=[security.ALGORITHM])
+        jti = payload.get("jti")
+        exp = payload.get("exp")
+        
+        if jti and exp:
+            # Redis bağlantısı
+            redis_url = os.getenv("REDIS_URL", "redis://redis:6379/0")
+            redis_conn = redis.from_url(redis_url, encoding="utf-8", decode_responses=True)
+            
+            # Kalan süreyi hesapla (saniye cinsinden)
+            # Redis'e jti'yi kaydet (expire süresi token'ın kalan ömrü kadar)
+            # exp bir timestamp, şimdiki zamanı çıkararak TTL buluyoruz
+            import time
+            ttl = int(exp - time.time())
+            
+            if ttl > 0:
+                await redis_conn.setex(f"blacklist:{jti}", ttl, "true")
+                
+        return {"message": "Başarıyla çıkış yapıldı"}
+    except JWTError:
+        # Token zaten geçersizse işlem yapmaya gerek yok
+        return {"message": "Token geçersiz"}
+
+@router.post(
+    "/register",
+    response_model=schemas.User,
+    dependencies=[Depends(RateLimiter(times=5, seconds=60))]
+)
 def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
     # Check if user already exists
     db_user = db.query(models.User).filter(models.User.email == user.email).first()
@@ -55,9 +101,14 @@ def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
     db.refresh(db_user)
     return db_user
 
-@router.post("/token", response_model=schemas.Token)
+@router.post(
+    "/token",
+    response_model=schemas.Token,
+    dependencies=[Depends(RateLimiter(times=10, seconds=60))]
+)
 def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    user = db.query(models.User).filter(models.User.email == form_data.username).first()
+    normalized_email = form_data.username.strip().lower()
+    user = db.query(models.User).filter(models.User.email == normalized_email).first()
     if not user or not security.verify_password(form_data.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

@@ -2,7 +2,9 @@ import { useState } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import axios from 'axios'
 
-const API_URL = '/api';
+const API_URL = '/api'
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,128}$/
 
 function Login() {
   const navigate = useNavigate();
@@ -16,34 +18,48 @@ function Login() {
   const message = location.state?.message;
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
+    e.preventDefault()
+    setError('')
+
+    const email = formData.username.trim().toLowerCase()
+    const password = formData.password
+
+    if (!EMAIL_REGEX.test(email) || email.length > 254) {
+      setError('Geçerli bir e-posta adresi giriniz')
+      return
+    }
+
+    if (!PASSWORD_REGEX.test(password)) {
+      setError('Şifre büyük/küçük harf, rakam ve özel karakter içermelidir')
+      return
+    }
+
+    setLoading(true)
 
     try {
-      const params = new URLSearchParams();
-      params.append('username', formData.username);
-      params.append('password', formData.password);
+      const params = new URLSearchParams()
+      params.append('username', email)
+      params.append('password', password)
 
       const response = await axios.post(`${API_URL}/token`, params, {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded'
         }
-      });
+      })
 
       // Token'ı kaydet
-      localStorage.setItem('token', response.data.access_token);
+      localStorage.setItem('token', response.data.access_token)
       
       // Ana sayfaya yönlendir
-      navigate('/');
-      window.location.reload(); // Layout state'ini güncellemek için
+      navigate('/')
+      window.location.reload() // Layout state'ini güncellemek için
     } catch (err) {
-      console.error('Login error:', err);
-      setError('E-posta veya şifre hatalı');
+      console.error('Login error:', err)
+      setError('E-posta veya şifre hatalı')
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   const handleChange = (e) => {
     setFormData({
@@ -93,9 +109,12 @@ function Login() {
                   type="email"
                   autoComplete="email"
                   required
+                  maxLength={254}
                   value={formData.username}
                   onChange={handleChange}
                   className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  pattern={EMAIL_REGEX.source}
+                  title="Geçerli bir e-posta adresi giriniz"
                 />
               </div>
             </div>
@@ -111,9 +130,12 @@ function Login() {
                   type="password"
                   autoComplete="current-password"
                   required
+                  minLength={8}
+                  maxLength={128}
                   value={formData.password}
                   onChange={handleChange}
                   className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  title="8-128 karakter, büyük/küçük harf, sayı ve özel karakter gereklidir"
                 />
               </div>
             </div>

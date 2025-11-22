@@ -12,4 +12,6 @@ webdriver-manager
 openai
 passlib[bcrypt]
 python-jose[cryptography]
-multipart
+python-multipart
+fastapi-limiter
+redis

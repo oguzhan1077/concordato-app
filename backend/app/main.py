@@ -1,3 +1,5 @@
+import os
+
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -6,6 +8,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from datetime import datetime
 import re
+import redis.asyncio as redis
+from fastapi_limiter import FastAPILimiter
 
 from . import models, schemas, database, auth
 
@@ -13,6 +17,24 @@ from . import models, schemas, database, auth
 models.Base.metadata.create_all(bind=database.engine)
 
 app = FastAPI(title="Konkordato Takip API")
+
+# Rate limiter kurulumu
+@app.on_event("startup")
+async def startup_event():
+    try:
+        redis_url = os.getenv("REDIS_URL", "redis://redis:6379/0")
+        redis_conn = redis.from_url(redis_url, encoding="utf-8", decode_responses=True)
+        await FastAPILimiter.init(redis_conn)
+        print(f"Redis bağlantısı başarılı: {redis_url}")
+    except Exception as e:
+        print(f"Redis bağlantı hatası: {e}")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    try:
+        await FastAPILimiter.close()
+    except Exception as e:
+        print(f"Redis kapatma hatası: {e}")
 
 # Auth Router'ı ekle
 app.include_router(auth.router, tags=["auth"])

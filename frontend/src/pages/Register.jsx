@@ -2,7 +2,10 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import axios from 'axios'
 
-const API_URL = '/api';
+const API_URL = '/api'
+const NAME_REGEX = /^[A-Za-zÇĞİÖŞÜçğöşıü0-9\s.'-]{2,100}$/
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,128}$/
 
 function Register() {
   const navigate = useNavigate();
@@ -16,21 +19,32 @@ function Register() {
   const [loading, setLoading] = useState(false);
 
   const validate = () => {
-    const newErrors = {};
-    if (!formData.full_name.trim()) newErrors.full_name = 'Ad Soyad gereklidir';
-    if (!formData.email.trim()) {
-      newErrors.email = 'E-posta gereklidir';
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'Geçerli bir e-posta adresi giriniz';
+    const newErrors = {}
+    const name = formData.full_name.trim()
+    const email = formData.email.trim().toLowerCase()
+    const password = formData.password
+
+    if (!name) {
+      newErrors.full_name = 'Ad Soyad gereklidir'
+    } else if (!NAME_REGEX.test(name)) {
+      newErrors.full_name = 'Ad alanı sadece harf, rakam, boşluk ve .\'- karakterleri içerebilir'
     }
-    if (formData.password.length < 6) {
-      newErrors.password = 'Şifre en az 6 karakter olmalıdır';
+
+    if (!email) {
+      newErrors.email = 'E-posta gereklidir'
+    } else if (email.length > 254 || !EMAIL_REGEX.test(email)) {
+      newErrors.email = 'Geçerli bir e-posta adresi giriniz (254 karakter sınırı)'
     }
-    if (formData.password !== formData.confirm_password) {
-      newErrors.confirm_password = 'Şifreler eşleşmiyor';
+
+    if (!PASSWORD_REGEX.test(password)) {
+      newErrors.password = 'Şifre 8-128 karakter olmalı ve büyük, küçük harf, rakam ve özel karakter içermeli'
     }
-    return newErrors;
-  };
+
+    if (password !== formData.confirm_password) {
+      newErrors.confirm_password = 'Şifreler eşleşmiyor'
+    }
+    return newErrors
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -45,10 +59,10 @@ function Register() {
 
     try {
       await axios.post(`${API_URL}/register`, {
-        full_name: formData.full_name,
-        email: formData.email,
+        full_name: formData.full_name.trim(),
+        email: formData.email.trim().toLowerCase(),
         password: formData.password
-      });
+      })
       
       // Başarılı kayıt sonrası giriş sayfasına yönlendir
       navigate('/giris', { 
@@ -111,11 +125,14 @@ function Register() {
                   type="text"
                   autoComplete="name"
                   required
+                  maxLength={100}
                   value={formData.full_name}
                   onChange={handleChange}
                   className={`appearance-none block w-full px-3 py-2 border rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm ${
                     errors.full_name ? 'border-red-300' : 'border-gray-300'
                   }`}
+                  pattern={NAME_REGEX.source}
+                  title="2-100 karakter. Harf, rakam, boşluk, . ' - karakterlerine izin verilir"
                 />
                 {errors.full_name && (
                   <p className="mt-1 text-xs text-red-600">{errors.full_name}</p>
@@ -134,11 +151,14 @@ function Register() {
                   type="email"
                   autoComplete="email"
                   required
+                  maxLength={254}
                   value={formData.email}
                   onChange={handleChange}
                   className={`appearance-none block w-full px-3 py-2 border rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm ${
                     errors.email ? 'border-red-300' : 'border-gray-300'
                   }`}
+                  pattern={EMAIL_REGEX.source}
+                  title="Geçerli bir e-posta adresi giriniz"
                 />
                 {errors.email && (
                   <p className="mt-1 text-xs text-red-600">{errors.email}</p>
@@ -157,11 +177,14 @@ function Register() {
                   type="password"
                   autoComplete="new-password"
                   required
+                  minLength={8}
+                  maxLength={128}
                   value={formData.password}
                   onChange={handleChange}
                   className={`appearance-none block w-full px-3 py-2 border rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm ${
                     errors.password ? 'border-red-300' : 'border-gray-300'
                   }`}
+                  title="8-128 karakter, büyük/küçük harf, sayı ve özel karakter içermelidir"
                 />
                 {errors.password && (
                   <p className="mt-1 text-xs text-red-600">{errors.password}</p>
@@ -180,11 +203,14 @@ function Register() {
                   type="password"
                   autoComplete="new-password"
                   required
+                  minLength={8}
+                  maxLength={128}
                   value={formData.confirm_password}
                   onChange={handleChange}
                   className={`appearance-none block w-full px-3 py-2 border rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm ${
                     errors.confirm_password ? 'border-red-300' : 'border-gray-300'
                   }`}
+                  title="Şifre tekrarınızı giriniz"
                 />
                 {errors.confirm_password && (
                   <p className="mt-1 text-xs text-red-600">{errors.confirm_password}</p>

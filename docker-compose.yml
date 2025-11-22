@@ -29,8 +29,10 @@ services:
       - DB_PASSWORD=gK2VDL-2&2<I
       - DB_NAME=ilan_db
       - HEADLESS=true
+      - REDIS_URL=redis://redis:6379/0
     depends_on:
       - db
+      - redis
     volumes:
       - ./backend:/app
     restart: unless-stopped
@@ -61,6 +63,14 @@ services:
       - app_network
     command: --default-authentication-plugin=mysql_native_password
 
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    networks:
+      - app_network
+
 networks:
   app_network:
     driver: bridge
@@ -69,3 +79,4 @@ volumes:
   db_data:
     external: true
     name: concordato_db_data
+  redis_data:

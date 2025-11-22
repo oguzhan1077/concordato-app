@@ -35,7 +35,17 @@ function Layout({ children }) {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      try {
+        await axios.post(`${API_URL}/logout`, {}, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+      } catch (error) {
+        console.error('Logout failed:', error);
+      }
+    }
     localStorage.removeItem('token');
     setIsLoggedIn(false);
     setUser(null);
