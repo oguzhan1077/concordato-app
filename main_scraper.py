@@ -46,7 +46,12 @@ def veri_cek_ve_kaydet():
     chrome_options = Options()
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
-    chrome_options.add_argument("--start-maximized") 
+    chrome_options.add_argument("--start-maximized")
+    
+    # Docker veya sunucu ortamı için headless modu
+    import os
+    if os.environ.get("HEADLESS", "false").lower() == "true":
+        chrome_options.add_argument("--headless=new")
     
     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
     

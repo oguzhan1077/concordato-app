@@ -6,6 +6,7 @@ from config import DB_HOST, DB_USER, DB_PASSWORD, DB_NAME
 from datetime import datetime
 import re
 from io import BytesIO
+from models import Base # Tabloları oluşturmak için
 
 # Sayfa Ayarları
 st.set_page_config(
@@ -28,7 +29,12 @@ def get_db_connection():
         db_url = f"mysql+mysqlconnector://{DB_USER}:{DB_PASSWORD}@{DB_HOST}/{DB_NAME}"
     else:
         db_url = f"mysql+mysqlconnector://{DB_USER}@{DB_HOST}/{DB_NAME}"
-    return create_engine(db_url)
+    engine = create_engine(db_url)
+    
+    # Tabloların varlığını kontrol et ve oluştur
+    Base.metadata.create_all(engine)
+    
+    return engine
 
 # Veri Çekme
 @st.cache_data(ttl=300)
