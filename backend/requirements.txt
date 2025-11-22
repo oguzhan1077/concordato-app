@@ -1,0 +1,15 @@
+fastapi
+uvicorn
+sqlalchemy
+mysql-connector-python
+pydantic
+pydantic[email]
+python-dotenv
+requests
+beautifulsoup4
+selenium
+webdriver-manager
+openai
+passlib[bcrypt]
+python-jose[cryptography]
+multipart

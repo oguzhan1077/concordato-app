@@ -1,40 +1,64 @@
 version: '3.8'
 
 services:
-  app:
-    build: .
-    container_name: concordato_app
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
     ports:
-      - "8501:8501"
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+    depends_on:
+      - backend
+      - frontend
+    restart: unless-stopped
+    networks:
+      - app_network
+
+  # FastAPI Backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
     environment:
       - DB_HOST=db
       - DB_USER=root
       - DB_PASSWORD=gK2VDL-2&2<I
       - DB_NAME=ilan_db
       - HEADLESS=true
-      # API Key config.py'den okunacak, istenirse buraya eklenebilir:
-      # - OPENAI_API_KEY=sk-...
     depends_on:
       - db
     volumes:
-      - .:/app
+      - ./backend:/app
+    restart: unless-stopped
     networks:
       - app_network
-    restart: unless-stopped
 
+  # React Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    networks:
+      - app_network
+
+  # MySQL Database
   db:
     image: mysql:8.0
-    container_name: concordato_db
     environment:
       - MYSQL_ROOT_PASSWORD=gK2VDL-2&2<I
       - MYSQL_DATABASE=ilan_db
     volumes:
       - db_data:/var/lib/mysql
+    ports:
+      - "3307:3306"
+    restart: unless-stopped
     networks:
       - app_network
-    ports:
-      - "3307:3306" # Yerel MySQL ile çakışmaması için dışarı 3307 olarak açtık
-    restart: unless-stopped
     command: --default-authentication-plugin=mysql_native_password
 
 networks:
@@ -43,4 +67,5 @@ networks:
 
 volumes:
   db_data:
-
+    external: true
+    name: concordato_db_data
