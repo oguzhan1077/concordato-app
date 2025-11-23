@@ -8,8 +8,8 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 # Railway için özel requirements (scraper olmadan)
-COPY requirements.railway.txt .
-RUN pip install --no-cache-dir -r requirements.railway.txt
+COPY requirements.railway.txt requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
