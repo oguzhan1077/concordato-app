@@ -1,0 +1,21 @@
+FROM python:3.10-slim
+
+# Sadece gerekli sistem paketlerini yükle (Chrome/Selenium olmadan)
+RUN apt-get update && apt-get install -y \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Backend klasöründeki dosyaları kopyala
+COPY backend/requirements.railway.txt requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY backend/ .
+
+# FastAPI port
+EXPOSE 8000
+
+# API'yi başlat
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
