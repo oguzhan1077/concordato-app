@@ -1,6 +1,7 @@
 import os
 
 from fastapi import FastAPI, Depends, HTTPException, Query
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 from typing import List, Optional
@@ -17,7 +18,10 @@ from .auth import get_current_user
 # Database tablolarını oluştur
 models.Base.metadata.create_all(bind=database.engine)
 
-app = FastAPI(title="Konkordato Takip API")
+app = FastAPI(
+    title="Konkordato Takip API",
+    default_response_class=JSONResponse
+)
 
 # Rate limiter kurulumu
 @app.on_event("startup")
