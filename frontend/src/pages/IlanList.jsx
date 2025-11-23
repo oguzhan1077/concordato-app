@@ -39,7 +39,11 @@ function IlanList() {
       setTotalPages(res.data.total_pages);
       setTotalItems(res.data.total);
     } catch (err) {
-      console.error("Veri çekme hatası:", err);
+      // Sadece geliştirme modunda hata göster
+      if (import.meta.env.DEV) {
+        console.error("Veri çekme hatası:", err);
+      }
+      setIlanlar([]);
     } finally {
       setLoading(false);
     }
@@ -50,7 +54,10 @@ function IlanList() {
       const res = await axios.get(`${API_URL}/stats`);
       setStats(res.data);
     } catch (err) {
-      console.error("Stats hatası:", err);
+      // Stats isteğe bağlı, hata varsa gösterme
+      if (import.meta.env.DEV) {
+        console.warn("Stats yüklenemedi:", err.message);
+      }
     }
   };
 
@@ -59,7 +66,11 @@ function IlanList() {
       const res = await axios.get(`${API_URL}/sehirler`);
       setSehirler(['Tümü', ...res.data]);
     } catch (err) {
-      console.error("Şehirler hatası:", err);
+      // Şehirler yüklenemezse sadece "Tümü" göster
+      setSehirler(['Tümü']);
+      if (import.meta.env.DEV) {
+        console.warn("Şehirler yüklenemedi:", err.message);
+      }
     }
   };
 

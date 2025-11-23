@@ -45,3 +45,6 @@ geckodriver
 *.bak
 *.cache
 
+# Node.js
+node_modules/
+

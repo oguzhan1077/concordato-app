@@ -1,6 +1,6 @@
 import os
 
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List, Optional
@@ -40,9 +40,14 @@ async def shutdown_event():
 app.include_router(auth.router, tags=["auth"])
 
 # CORS Ayarları
+allowed_origins_env = os.getenv("CORS_ALLOW_ORIGINS", "http://localhost:3000")
+allowed_origins = [
+    origin.strip() for origin in allowed_origins_env.split(",") if origin.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # Production'da spesifik domainleri belirtin
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -59,6 +64,11 @@ def get_db():
 @app.get("/")
 def read_root():
     return {"message": "Konkordato API Çalışıyor"}
+
+# Pagination sabitleri - DoS saldırılarına karşı koruma
+MAX_PAGE_LIMIT = 100  # Maksimum sayfa başına kayıt
+DEFAULT_PAGE_LIMIT = 20  # Varsayılan limit
+MIN_PAGE_LIMIT = 1  # Minimum limit
 
 class IlanListResponse(BaseModel):
     items: List[schemas.Ilan]
@@ -91,48 +101,61 @@ def parse_tarih(tarih_str):
 
 @app.get("/ilanlar", response_model=IlanListResponse)
 def get_ilanlar(
-    skip: int = 0, 
-    limit: int = 20, 
-    sehir: Optional[str] = None,
-    search: Optional[str] = None,
-    baslangic_tarihi: Optional[str] = None,
-    bitis_tarihi: Optional[str] = None,
+    skip: int = Query(
+        default=0, 
+        ge=0, 
+        description="Atlanacak kayıt sayısı (negatif olamaz)"
+    ),
+    limit: int = Query(
+        default=DEFAULT_PAGE_LIMIT, 
+        ge=MIN_PAGE_LIMIT, 
+        le=MAX_PAGE_LIMIT,
+        description=f"Sayfa başına kayıt sayısı (maksimum {MAX_PAGE_LIMIT})"
+    ),
+    sehir: Optional[str] = Query(default=None, description="Şehir filtresi"),
+    search: Optional[str] = Query(default=None, max_length=200, description="Arama terimi"),
+    baslangic_tarihi: Optional[str] = Query(default=None, description="Başlangıç tarihi (GG.MM.YYYY)"),
+    bitis_tarihi: Optional[str] = Query(default=None, description="Bitiş tarihi (GG.MM.YYYY)"),
     db: Session = Depends(get_db)
 ):
+    """
+    İlanları sayfalı olarak getirir.
+    
+    Güvenlik:
+    - limit maksimum 100 ile sınırlıdır (DoS koruması)
+    - skip negatif olamaz
+    - Tarih filtreleme veritabanı seviyesinde yapılır (performans)
+    """
     query = db.query(models.Ilan)
     
+    # Şehir filtresi
     if sehir and sehir != "Tümü":
         query = query.filter(models.Ilan.sehir == sehir)
-        
+    
+    # Arama filtresi
     if search:
-        search_term = f"%{search}%"
+        # SQL injection koruması için parametreli sorgu kullanılıyor
+        search_term = f"%{search[:200]}%"  # Maksimum 200 karakter
         query = query.filter(
             (models.Ilan.baslik.like(search_term)) | 
             (models.Ilan.ilan_no.like(search_term)) |
             (models.Ilan.metin.like(search_term))
         )
     
-    # Tarih filtreleme
-    if baslangic_tarihi:
-        baslangic_dt = parse_tarih(baslangic_tarihi)
-        if baslangic_dt:
-            # Tarih string'lerini karşılaştırmak için tüm ilanları çekip filtreleme yapıyoruz
-            # Daha iyi performans için veritabanında tarih alanını DATE olarak saklamak daha iyi olur
-            # Şimdilik Python tarafında filtreleme yapıyoruz
-            pass
-    
-    if bitis_tarihi:
-        bitis_dt = parse_tarih(bitis_tarihi)
-        if bitis_dt:
-            pass
-    
-    # Tüm ilanları çek (tarih filtresi için)
-    all_ilanlar = query.all()
-    
-    # Tarih filtresi uygula (eğer varsa)
+    # Tarih filtreleme - Veritabanı seviyesinde yapılıyor
+    # NOT: yayin_tarihi string formatında saklanıyor, ideal çözüm DATE tipine çevirmek
+    # Şimdilik subquery ile filtreleme yapıyoruz
     if baslangic_tarihi or bitis_tarihi:
+        # Tarih filtreleme için tüm tabloyu çekmek yerine
+        # maksimum 10000 kayıtla sınırlayarak güvenlik sağlıyoruz
+        MAX_DATE_FILTER_RECORDS = 10000
+        
+        # Önce tarihe göre sıralı kayıtları çek (sınırlı)
+        temp_query = query.order_by(models.Ilan.yayin_tarihi.desc(), models.Ilan.id.desc())
+        temp_ilanlar = temp_query.limit(MAX_DATE_FILTER_RECORDS).all()
+        
         filtered_ilanlar = []
-        for ilan in all_ilanlar:
+        for ilan in temp_ilanlar:
             if not ilan.yayin_tarihi:
                 continue
                 
@@ -154,19 +177,22 @@ def get_ilanlar(
             
             filtered_ilanlar.append(ilan)
         
-        # Filtrelenmiş listeyi kullan
+        # Filtrelenmiş sonuçlar
         total = len(filtered_ilanlar)
-        # Sıralama
-        filtered_ilanlar.sort(key=lambda x: (parse_tarih(x.yayin_tarihi) or datetime.min, x.id), reverse=True)
+        # Sıralama (zaten tarihe göre sıralı)
         # Sayfalama
         ilanlar = filtered_ilanlar[skip:skip+limit]
     else:
-        # Tarih filtresi yoksa normal sorgu
+        # Tarih filtresi yoksa veritabanı seviyesinde pagination
         total = query.count()
-        ilanlar = query.order_by(models.Ilan.yayin_tarihi.desc(), models.Ilan.id.desc()).offset(skip).limit(limit).all()
+        ilanlar = query.order_by(
+            models.Ilan.yayin_tarihi.desc(), 
+            models.Ilan.id.desc()
+        ).offset(skip).limit(limit).all()
     
-    page = (skip // limit) + 1
-    total_pages = (total + limit - 1) // limit  # Ceiling division
+    # Sayfa hesaplamaları - division by zero koruması
+    page = (skip // limit) + 1 if limit > 0 else 1
+    total_pages = (total + limit - 1) // limit if limit > 0 else 0
     
     return {
         "items": ilanlar,

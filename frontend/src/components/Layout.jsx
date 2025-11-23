@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import Logo from './Logo'
@@ -15,46 +15,54 @@ function Layout({ children }) {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [user, setUser] = useState(null)
 
+  const checkAuth = useCallback(async () => {
+    const fetchProfile = async () => {
+      const res = await axios.get(`${API_URL}/users/me`);
+      setUser(res.data);
+      setIsLoggedIn(true);
+    };
+
+    try {
+      await fetchProfile();
+    } catch (err) {
+      // 401 Unauthorized: Giriş yapmamış kullanıcı (normal durum)
+      if (err.response?.status === 401) {
+        try {
+          // Token refresh dene
+          await axios.post(`${API_URL}/refresh`);
+          await fetchProfile();
+          return;
+        } catch (refreshError) {
+          // Refresh de başarısız - kullanıcı giriş yapmamış (normal)
+          // Console'u kirletmeyelim, sessizce handle edelim
+        }
+      }
+      // Giriş yapılmamış durumda
+      setIsLoggedIn(false);
+      setUser(null);
+    }
+  }, []);
+
   useEffect(() => {
     checkAuth();
-    // Dark mode tercihini localStorage'dan yükle
+  }, [checkAuth, location.pathname]);
+
+  useEffect(() => {
     const savedDarkMode = localStorage.getItem('darkMode') === 'true';
     setIsDarkMode(savedDarkMode);
     if (savedDarkMode) {
       document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
     }
   }, []);
 
-  const checkAuth = async () => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      try {
-        const res = await axios.get(`${API_URL}/users/me`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        setUser(res.data);
-        setIsLoggedIn(true);
-      } catch (err) {
-        console.error('Auth check failed:', err);
-        localStorage.removeItem('token');
-        setIsLoggedIn(false);
-        setUser(null);
-      }
-    }
-  };
-
   const handleLogout = async () => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      try {
-        await axios.post(`${API_URL}/logout`, {}, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-      } catch (error) {
-        console.error('Logout failed:', error);
-      }
+    try {
+      await axios.post(`${API_URL}/logout`);
+    } catch (error) {
+      // Logout hatası önemli değil - zaten session temizlenecek
     }
-    localStorage.removeItem('token');
     setIsLoggedIn(false);
     setUser(null);
     setIsUserMenuOpen(false);

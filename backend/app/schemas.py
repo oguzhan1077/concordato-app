@@ -1,7 +1,8 @@
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 from typing import List, Optional
 from datetime import datetime
 import re
+from . import privacy_utils
 
 # --- Borçlu Schemas ---
 class IlanBorcluBase(BaseModel):
@@ -30,6 +31,27 @@ class IlanBorclu(IlanBorcluBase):
 
     class Config:
         from_attributes = True
+    
+    @model_validator(mode='after')
+    def mask_personal_data(self):
+        """
+        KVKK ve TCK 136 uyarınca kişisel verileri maskeler.
+        API response'larında otomatik olarak çalışır.
+        """
+        if privacy_utils.should_mask_data():
+            # TC/VKN maskeleme (kısmi - ilk 3 ve son 4 hane görünür)
+            if self.tc_vkn:
+                self.tc_vkn = privacy_utils.mask_tc_vkn(self.tc_vkn, mask_level="partial")
+            
+            # Adres maskeleme (sadece şehir görünür)
+            if self.adres:
+                self.adres = privacy_utils.mask_address(self.adres, show_city=True)
+            
+            # Karar özeti içindeki kişisel verileri maskele
+            if self.karar_ozeti:
+                self.karar_ozeti = privacy_utils.mask_text_personal_data(self.karar_ozeti)
+        
+        return self
 
 # --- İlan Schemas ---
 class IlanBase(BaseModel):
@@ -53,6 +75,22 @@ class Ilan(IlanBase):
 
     class Config:
         from_attributes = True
+    
+    @model_validator(mode='after')
+    def mask_personal_data_in_text(self):
+        """
+        KVKK ve TCK 136 uyarınca ilan metnindeki kişisel verileri maskeler.
+        TC Kimlik No, telefon, email gibi verileri otomatik tespit eder ve maskeler.
+        """
+        if privacy_utils.should_mask_data():
+            # İlan metnindeki kişisel verileri maskele
+            if self.metin:
+                self.metin = privacy_utils.mask_text_personal_data(
+                    self.metin, 
+                    aggressive=True  # 11 haneli tüm sayıları maskele
+                )
+        
+        return self
 
 class Stats(BaseModel):
     total_ilan: int
@@ -111,9 +149,22 @@ class User(UserBase):
     class Config:
         from_attributes = True
 
-class Token(BaseModel):
-    access_token: str
-    token_type: str
+class RegisterResponse(BaseModel):
+    """
+    Güvenli kayıt response'u - User Enumeration Attack'i önlemek için
+    email'in kayıtlı olup olmadığını açığa vermez.
+    """
+    message: str
+    success: bool
+
+class AuthResponse(BaseModel):
+    """
+    Kimlik doğrulama response'u - Token bilgilerini HttpOnly cookie üzerinden gönderir.
+    """
+    message: str
+    token_type: str = "bearer"
+    expires_in: int
+    refresh_expires_in: int
 
 class TokenData(BaseModel):
     email: Optional[str] = None

@@ -41,21 +41,16 @@ function Login() {
       params.append('username', email)
       params.append('password', password)
 
-      const response = await axios.post(`${API_URL}/token`, params, {
+      await axios.post(`${API_URL}/token`, params, {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded'
         }
       })
 
-      // Token'ı kaydet
-      localStorage.setItem('token', response.data.access_token)
-      
-      // Ana sayfaya yönlendir
       navigate('/')
-      window.location.reload() // Layout state'ini güncellemek için
     } catch (err) {
       console.error('Login error:', err)
-      setError('E-posta veya şifre hatalı')
+      setError(err.response?.data?.detail || 'E-posta veya şifre hatalı')
     } finally {
       setLoading(false)
     }

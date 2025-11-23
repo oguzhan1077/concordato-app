@@ -58,19 +58,23 @@ function Register() {
     setErrors({});
 
     try {
-      await axios.post(`${API_URL}/register`, {
+      const response = await axios.post(`${API_URL}/register`, {
         full_name: formData.full_name.trim(),
         email: formData.email.trim().toLowerCase(),
         password: formData.password
       })
       
-      // Başarılı kayıt sonrası giriş sayfasına yönlendir
+      // Backend her zaman generic mesaj döner (güvenlik için)
+      // Email zaten kayıtlı olsa bile kullanıcı bunu bilemez
       navigate('/giris', { 
-        state: { message: 'Kayıt başarılı! Lütfen giriş yapınız.' } 
+        state: { 
+          message: response.data.message || 'Kayıt işleminiz alındı. E-posta adresinizi kontrol ediniz.' 
+        } 
       });
     } catch (err) {
+      // Sadece rate limit veya sunucu hatalarında buraya düşer
       setErrors({ 
-        submit: err.response?.data?.detail || 'Kayıt sırasında bir hata oluştu' 
+        submit: 'Kayıt sırasında bir hata oluştu. Lütfen daha sonra tekrar deneyiniz.' 
       });
     } finally {
       setLoading(false);
