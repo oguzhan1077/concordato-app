@@ -1,4 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
+import Logo from './Logo'
 
 function Sidebar() {
   const location = useLocation();
@@ -18,7 +19,9 @@ function Sidebar() {
     <div className="fixed left-0 top-0 h-full w-64 bg-white border-r border-gray-200 flex flex-col shadow-sm">
       {/* Başlık */}
       <div className="p-6 border-b border-gray-200">
-        <h1 className="text-lg font-bold text-gray-900">Konkordato Takip Paneli</h1>
+        <Link to="/" className="block">
+          <Logo size="sm" showText={true} />
+        </Link>
       </div>
 
       {/* Menü */}

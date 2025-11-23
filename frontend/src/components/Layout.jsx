@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import axios from 'axios'
+import Logo from './Logo'
 
 const API_URL = '/api';
 
@@ -79,8 +80,8 @@ function Layout({ children }) {
           <div className="flex justify-between items-center h-14">
             {/* Logo ve Ana Menü */}
             <div className="flex items-center">
-              <Link to="/" className="flex items-center space-x-2">
-                <span className="text-lg font-semibold text-gray-900 dark:text-white">Konkordato Takip</span>
+              <Link to="/" className="flex items-center">
+                <Logo size="default" showText={true} />
               </Link>
               
               {/* Desktop Menü */}
