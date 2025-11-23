@@ -68,9 +68,17 @@ class IlanListResponse(BaseModel):
     total_pages: int
 
 def parse_tarih(tarih_str):
-    """GG.AA.YYYY formatındaki tarihi datetime'a çevirir"""
+    """GG.AA.YYYY, GG/AA/YYYY veya YYYY-MM-DD formatındaki tarihi datetime'a çevirir"""
     if not tarih_str:
         return None
+    
+    tarih_str = tarih_str.strip()
+    
+    # Önce normalize et (standart format: GG.AA.YYYY)
+    import re
+    # GG/AA/YYYY veya GG-AA-YYYY formatını GG.AA.YYYY'ye çevir
+    tarih_str = re.sub(r'(\d{1,2})[/-](\d{1,2})[/-](\d{4})', r'\1.\2.\3', tarih_str)
+    
     try:
         # GG.AA.YYYY formatını parse et
         return datetime.strptime(tarih_str, "%d.%m.%Y")
@@ -189,7 +197,7 @@ def get_stats(db: Session = Depends(get_db)):
     
     # Son güncelleme (en yeni ilan tarihi)
     last_ilan = db.query(models.Ilan).order_by(models.Ilan.eklenme_tarihi.desc()).first()
-    last_update = last_ilan.eklenme_tarihi.strftime("%d.%m.%Y %H:%M") if last_ilan else "-"
+    last_update = last_ilan.eklenme_tarihi.strftime("%d.%m.%Y") if last_ilan else "-"
     
     return {
         "total_ilan": total_ilan,

@@ -13,6 +13,44 @@ def temizle_metin(text):
     if not text: return ""
     return " ".join(text.split())
 
+def normalize_tarih(tarih_str):
+    """
+    Tarih formatını standart hale getirir (GG.AA.YYYY)
+    Desteklenen formatlar: 
+    - 21/11/2025 -> 21.11.2025
+    - 21.11.2025 -> 21.11.2025
+    - 21-11-2025 -> 21.11.2025
+    """
+    if not tarih_str:
+        return ""
+    
+    tarih_str = tarih_str.strip().replace(":", "").strip()
+    
+    # Boşlukları temizle
+    tarih_str = " ".join(tarih_str.split())
+    
+    if not tarih_str:
+        return ""
+    
+    # Farklı ayırıcıları normalize et
+    # "/" veya "-" ile ayrılmış tarihleri "." ile değiştir
+    import re
+    # GG/AA/YYYY veya GG-AA-YYYY formatını GG.AA.YYYY'ye çevir
+    tarih_str = re.sub(r'(\d{1,2})[/-](\d{1,2})[/-](\d{4})', r'\1.\2.\3', tarih_str)
+    
+    # Eğer zaten "." ile ayrılmışsa ve format doğruysa olduğu gibi döndür
+    if re.match(r'^\d{1,2}\.\d{1,2}\.\d{4}$', tarih_str):
+        # Gün ve ayı 2 haneli yap (01.11.2025 gibi)
+        parts = tarih_str.split('.')
+        if len(parts) == 3:
+            gun = parts[0].zfill(2)
+            ay = parts[1].zfill(2)
+            yil = parts[2]
+            return f"{gun}.{ay}.{yil}"
+        return tarih_str
+    
+    return tarih_str
+
 def veri_cek_ve_kaydet():
     print("Veritabanına bağlanılıyor...")
     session = get_db_session()
@@ -207,8 +245,8 @@ def veri_cek_ve_kaydet():
                                 # Yayın ile ilgili kelimeler varsa
                                 if "yayın" in li_text or "yayım" in li_text:
                                     tarih_bold = li.find_element(By.TAG_NAME, "b")
-                                    tarih = tarih_bold.text.strip().replace(":", "").strip()
-                                    detaylar["yayin_tarihi"] = tarih
+                                    tarih = tarih_bold.text.strip()
+                                    detaylar["yayin_tarihi"] = normalize_tarih(tarih)
                                     break
                             except:
                                 continue

@@ -39,14 +39,21 @@ services:
     networks:
       - app_network
 
-  # React Frontend
+  # React Frontend (Development Mode)
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
+    image: node:18-alpine
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "3000:3000"
+    command: sh -c "npm install && npm run dev"
     restart: unless-stopped
     networks:
       - app_network
+    environment:
+      - NODE_ENV=development
 
   # MySQL Database
   db:
