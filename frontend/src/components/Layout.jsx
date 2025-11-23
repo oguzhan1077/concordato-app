@@ -25,16 +25,21 @@ function Layout({ children }) {
     try {
       await fetchProfile();
     } catch (err) {
-      // 401 Unauthorized: Giriş yapmamış kullanıcı (normal durum)
+      // 401 Unauthorized: Giriş yapmamış kullanıcı veya token süresi dolmuş
       if (err.response?.status === 401) {
-        try {
-          // Token refresh dene
-          await axios.post(`${API_URL}/refresh`);
-          await fetchProfile();
-          return;
-        } catch (refreshError) {
-          // Refresh de başarısız - kullanıcı giriş yapmamış (normal)
-          // Console'u kirletmeyelim, sessizce handle edelim
+        // Sadece cookie'de refresh_token varsa yenileme dene
+        const hasRefreshToken = document.cookie.includes('refresh_token');
+        
+        if (hasRefreshToken) {
+          try {
+            // Token refresh dene
+            await axios.post(`${API_URL}/refresh`);
+            await fetchProfile();
+            return;
+          } catch (refreshError) {
+            // Refresh de başarısız - sessizce devam et
+            // console.log kullanmıyoruz çünkü normal bir durum
+          }
         }
       }
       // Giriş yapılmamış durumda
@@ -140,6 +145,15 @@ function Layout({ children }) {
                   
                   {isUserMenuOpen && (
                     <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg py-1 border border-gray-200 dark:border-gray-700">
+                      {user?.is_superuser && (
+                        <Link
+                          to="/admin/hata-raporlari"
+                          className="block px-4 py-2 text-sm text-blue-600 font-medium hover:bg-gray-50 dark:text-blue-400 dark:hover:bg-gray-700"
+                          onClick={() => setIsUserMenuOpen(false)}
+                        >
+                          Admin Paneli
+                        </Link>
+                      )}
                       <Link
                         to="/profil"
                         className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700"

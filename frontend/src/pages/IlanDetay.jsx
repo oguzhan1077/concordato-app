@@ -19,6 +19,8 @@ function IlanDetay() {
   const [reportError, setReportError] = useState('');
   const [reportSuccess, setReportSuccess] = useState('');
   const [reportLoading, setReportLoading] = useState(false);
+  const [userReport, setUserReport] = useState(null);
+  const [reportStatusLoading, setReportStatusLoading] = useState(false);
 
   useEffect(() => {
     // Sayfa açıldığında scroll pozisyonunu en üste al
@@ -32,8 +34,25 @@ function IlanDetay() {
     try {
       await axios.get(`${API_URL}/users/me`);
       setIsAuthenticated(true);
+      // Kullanıcı giriş yapmışsa, rapor durumunu kontrol et
+      checkReportStatus();
     } catch (err) {
       setIsAuthenticated(false);
+    }
+  };
+
+  const checkReportStatus = async () => {
+    setReportStatusLoading(true);
+    try {
+      const res = await axios.get(`${API_URL}/ilan/${id}/rapor-durumu`);
+      if (res.data.has_report) {
+        setUserReport(res.data.rapor);
+      }
+    } catch (err) {
+      // Hata durumunda sessizce geç
+      console.log('Rapor durumu kontrol edilemedi:', err);
+    } finally {
+      setReportStatusLoading(false);
     }
   };
 
@@ -83,6 +102,9 @@ function IlanDetay() {
 
       setReportSuccess('Raporunuz başarıyla gönderildi. Teşekkür ederiz!');
       setReportForm({ kategori: 'yanlis_bilgi', aciklama: '' });
+      
+      // Rapor durumunu yeniden kontrol et
+      await checkReportStatus();
       
       setTimeout(() => {
         setShowReportModal(false);
@@ -231,18 +253,102 @@ function IlanDetay() {
               
               {isAuthenticated && (
                 <>
-                  <button
-                    onClick={handleReportClick}
-                    className="flex items-center justify-center w-full px-4 py-3 bg-red-500 dark:bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-600 dark:hover:bg-red-700 transition-all shadow-sm hover:shadow-md"
-                  >
-                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                    </svg>
-                    Hata Bildir
-                  </button>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
-                    İlanda hata gördüyseniz bildirebilirsiniz
-                  </p>
+                  {userReport && (userReport.durum === 'beklemede' || userReport.durum === 'inceleniyor') ? (
+                    // Beklemede veya İnceleniyor - Durum göster, yeni rapor vermesine izin verme
+                    <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                      <div className="flex items-start">
+                        <svg className="w-5 h-5 mr-2 mt-0.5 text-blue-600 dark:text-blue-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <div className="flex-1">
+                          <p className="text-sm font-semibold text-blue-900 dark:text-blue-200 mb-1">
+                            Hata Bildirildi
+                          </p>
+                          <p className="text-xs text-blue-700 dark:text-blue-300 mb-2">
+                            Kategori: {userReport.kategori.replace('_', ' ').toUpperCase()}
+                          </p>
+                          <div className="flex items-center mb-2">
+                            <span className="text-xs text-blue-600 dark:text-blue-400 font-medium mr-2">Durum:</span>
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                              userReport.durum === 'beklemede' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300' :
+                              'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
+                            }`}>
+                              {userReport.durum === 'beklemede' ? 'Beklemede' : 'İnceleniyor'}
+                            </span>
+                          </div>
+                          <p className="text-xs text-blue-600 dark:text-blue-400">
+                            Tarih: {new Date(userReport.olusturma_tarihi).toLocaleDateString('tr-TR')}
+                          </p>
+                          <p className="text-xs text-gray-600 dark:text-gray-400 mt-2 italic">
+                            Raporunuz inceleniyor. İşlem tamamlandığında buradan görebilirsiniz.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : userReport && (userReport.durum === 'cozuldu' || userReport.durum === 'reddedildi') ? (
+                    // Çözüldü veya Reddedildi - Durum göster ve yeni rapor verme seçeneği sun
+                    <div className="space-y-3">
+                      <div className={`border rounded-lg p-4 ${
+                        userReport.durum === 'cozuldu' 
+                          ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' 
+                          : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+                      }`}>
+                        <div className="flex items-start">
+                          <svg className={`w-5 h-5 mr-2 mt-0.5 flex-shrink-0 ${
+                            userReport.durum === 'cozuldu' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                          }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <div className="flex-1">
+                            <p className={`text-sm font-semibold mb-1 ${
+                              userReport.durum === 'cozuldu' ? 'text-green-900 dark:text-green-200' : 'text-red-900 dark:text-red-200'
+                            }`}>
+                              Önceki Rapor: {userReport.durum === 'cozuldu' ? 'Çözüldü' : 'Reddedildi'}
+                            </p>
+                            <p className={`text-xs mb-2 ${
+                              userReport.durum === 'cozuldu' ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300'
+                            }`}>
+                              Kategori: {userReport.kategori.replace('_', ' ').toUpperCase()}
+                            </p>
+                            <p className={`text-xs ${
+                              userReport.durum === 'cozuldu' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                            }`}>
+                              Tarih: {new Date(userReport.olusturma_tarihi).toLocaleDateString('tr-TR')}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <button
+                        onClick={handleReportClick}
+                        className="flex items-center justify-center w-full px-4 py-3 bg-orange-500 dark:bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-600 dark:hover:bg-orange-700 transition-all shadow-sm hover:shadow-md"
+                      >
+                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                        Yeni Hata Bildir
+                      </button>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
+                        Farklı bir sorun mu gördünüz? Tekrar bildirebilirsiniz.
+                      </p>
+                    </div>
+                  ) : (
+                    // Hiç rapor verilmemiş - Normal hata bildir butonu
+                    <>
+                      <button
+                        onClick={handleReportClick}
+                        className="flex items-center justify-center w-full px-4 py-3 bg-red-500 dark:bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-600 dark:hover:bg-red-700 transition-all shadow-sm hover:shadow-md"
+                      >
+                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                        Hata Bildir
+                      </button>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
+                        İlanda hata gördüyseniz bildirebilirsiniz
+                      </p>
+                    </>
+                  )}
                 </>
               )}
             </div>

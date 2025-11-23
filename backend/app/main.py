@@ -1,7 +1,7 @@
 import os
 
 from fastapi import FastAPI, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 from typing import List, Optional
 from fastapi.middleware.cors import CORSMiddleware
@@ -300,18 +300,27 @@ async def rapor_olustur(
     if not ilan:
         raise HTTPException(status_code=404, detail="İlan bulunamadı")
     
-    # Aynı kullanıcının aynı ilan için kısa sürede çoklu rapor oluşturmasını engelle
+    # Kullanıcının bu ilan için aktif (beklemede/inceleniyor) raporu var mı kontrol et
     from datetime import datetime, timedelta
-    recent_report = db.query(models.HataRaporu).filter(
-        models.HataRaporu.ilan_id == rapor.ilan_id,
-        models.HataRaporu.user_id == current_user.id,
-        models.HataRaporu.olusturma_tarihi >= datetime.now() - timedelta(hours=1)
-    ).first()
     
-    if recent_report:
+    # En son raporu bul
+    last_report = db.query(models.HataRaporu).filter(
+        models.HataRaporu.ilan_id == rapor.ilan_id,
+        models.HataRaporu.user_id == current_user.id
+    ).order_by(models.HataRaporu.olusturma_tarihi.desc()).first()
+    
+    # Eğer beklemede veya inceleniyor durumunda rapor varsa, yeni rapor veremez
+    if last_report and last_report.durum in ['beklemede', 'inceleniyor']:
         raise HTTPException(
             status_code=429, 
-            detail="Bu ilan için son 1 saat içinde zaten bir rapor oluşturdunuz"
+            detail=f"Bu ilan için zaten '{last_report.durum}' durumunda bir raporunuz var. Mevcut raporunuz işleme alındıktan sonra yeni rapor verebilirsiniz."
+        )
+    
+    # Son 5 dakika içinde rapor vermiş mi kontrol et (spam koruması)
+    if last_report and last_report.olusturma_tarihi >= datetime.now() - timedelta(minutes=5):
+        raise HTTPException(
+            status_code=429, 
+            detail="Bu ilan için son 5 dakika içinde zaten bir rapor oluşturdunuz. Lütfen biraz bekleyin."
         )
     
     # Yeni rapor oluştur
@@ -331,4 +340,125 @@ async def rapor_olustur(
         "message": "Hata raporunuz başarıyla oluşturuldu. İnceleme yapılacaktır.",
         "rapor_id": db_rapor.id
     }
+
+@app.get("/ilan/{ilan_id}/rapor-durumu")
+async def get_rapor_durumu(
+    ilan_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """
+    Kullanıcının belirli bir ilan için verdiği raporun durumunu döndürür.
+    Giriş yapmış kullanıcılar için çalışır.
+    """
+    # Kullanıcının bu ilan için verdiği en son raporu bul
+    rapor = db.query(models.HataRaporu).filter(
+        models.HataRaporu.ilan_id == ilan_id,
+        models.HataRaporu.user_id == current_user.id
+    ).order_by(models.HataRaporu.olusturma_tarihi.desc()).first()
+    
+    if not rapor:
+        return {
+            "has_report": False,
+            "rapor": None
+        }
+    
+    return {
+        "has_report": True,
+        "rapor": {
+            "id": rapor.id,
+            "kategori": rapor.kategori,
+            "durum": rapor.durum,
+            "olusturma_tarihi": rapor.olusturma_tarihi,
+            "guncellenme_tarihi": rapor.guncellenme_tarihi
+        }
+    }
+
+# --- Admin Endpoint'leri ---
+
+class HataRaporuListResponse(BaseModel):
+    items: List[schemas.HataRaporu]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+
+@app.get("/admin/hata-raporlari", response_model=HataRaporuListResponse)
+async def get_hata_raporlari(
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=20, ge=1, le=100),
+    durum: Optional[str] = Query(default=None, description="Filtre: beklemede, inceleniyor, cozuldu, reddedildi"),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """
+    Admin için hata raporlarını listeler.
+    GÜVENLİK: Sadece is_superuser=True olan kullanıcılar erişebilir.
+    Yetkisiz erişim denemelerinde 404 dönerek endpoint gizlenir.
+    """
+    # 1. Güvenlik Kontrolü: Kullanıcı admin mi?
+    if not current_user.is_superuser:
+        # GÜVENLİK: Saldırganlara endpoint'in varlığını belli etmemek için
+        # 403 (Forbidden) yerine 404 (Not Found) dönüyoruz.
+        raise HTTPException(status_code=404, detail="Sayfa bulunamadı")
+    
+    query = db.query(models.HataRaporu).options(joinedload(models.HataRaporu.user))
+    
+    # Filtreleme
+    if durum:
+        query = query.filter(models.HataRaporu.durum == durum)
+    
+    # Toplam sayıyı hesapla
+    total = query.count()
+    
+    # Sıralama (En yeniden eskiye)
+    raporlar = query.order_by(
+        models.HataRaporu.olusturma_tarihi.desc()
+    ).offset(skip).limit(limit).all()
+    
+    # Sayfa hesaplamaları
+    page = (skip // limit) + 1 if limit > 0 else 1
+    total_pages = (total + limit - 1) // limit if limit > 0 else 0
+    
+    return {
+        "items": raporlar,
+        "total": total,
+        "page": page,
+        "page_size": limit,
+        "total_pages": total_pages
+    }
+
+@app.patch("/admin/hata-raporlari/{rapor_id}")
+async def update_hata_raporu_durum(
+    rapor_id: int,
+    yeni_durum: str = Query(..., description="Yeni durum: beklemede, inceleniyor, cozuldu, reddedildi"),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """
+    Hata raporunun durumunu günceller.
+    GÜVENLİK: Sadece admin yetkisiyle yapılabilir.
+    Yetkisiz erişim denemelerinde 404 dönerek endpoint gizlenir.
+    """
+    # 1. Güvenlik Kontrolü
+    if not current_user.is_superuser:
+        # GÜVENLİK: Endpoint gizleme (404 Maskelemesi)
+        raise HTTPException(status_code=404, detail="Sayfa bulunamadı")
+    
+    # 2. Veri Validasyonu
+    valid_durumlar = ["beklemede", "inceleniyor", "cozuldu", "reddedildi"]
+    if yeni_durum not in valid_durumlar:
+        raise HTTPException(status_code=400, detail=f"Geçersiz durum. İzin verilen: {', '.join(valid_durumlar)}")
+    
+    rapor = db.query(models.HataRaporu).filter(models.HataRaporu.id == rapor_id).first()
+    if not rapor:
+        raise HTTPException(status_code=404, detail="Rapor bulunamadı")
+    
+    # Durum güncelleme
+    from datetime import datetime
+    rapor.durum = yeni_durum
+    rapor.guncellenme_tarihi = datetime.now()
+    db.commit()
+    
+    return {"message": "Rapor durumu güncellendi", "rapor_id": rapor_id, "yeni_durum": yeni_durum}
 

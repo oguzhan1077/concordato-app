@@ -200,6 +200,7 @@ class HataRaporu(BaseModel):
     durum: str
     olusturma_tarihi: datetime
     guncellenme_tarihi: datetime
+    user: Optional[User] = None
     
     class Config:
         from_attributes = True
