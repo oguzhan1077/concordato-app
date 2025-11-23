@@ -13,7 +13,12 @@ if MYSQL_URL:
     # Railway'den gelen tam URL kullan
     # Format: mysql://user:password@host:port/database
     # SQLAlchemy için mysql+mysqlconnector:// prefix'i ekle
+    # Türkçe karakterler için charset=utf8mb4 ekle
     SQLALCHEMY_DATABASE_URL = MYSQL_URL.replace("mysql://", "mysql+mysqlconnector://")
+    if "?" not in SQLALCHEMY_DATABASE_URL:
+        SQLALCHEMY_DATABASE_URL += "?charset=utf8mb4"
+    elif "charset" not in SQLALCHEMY_DATABASE_URL:
+        SQLALCHEMY_DATABASE_URL += "&charset=utf8mb4"
 else:
     # Fallback: Ayrı değişkenler kullan (Docker/local için)
     DB_HOST = os.getenv("DB_HOST", "db")
@@ -22,9 +27,9 @@ else:
     DB_NAME = os.getenv("DB_NAME", "ilan_db")
     
     if DB_PASSWORD:
-        SQLALCHEMY_DATABASE_URL = f"mysql+mysqlconnector://{DB_USER}:{DB_PASSWORD}@{DB_HOST}/{DB_NAME}"
+        SQLALCHEMY_DATABASE_URL = f"mysql+mysqlconnector://{DB_USER}:{DB_PASSWORD}@{DB_HOST}/{DB_NAME}?charset=utf8mb4"
     else:
-        SQLALCHEMY_DATABASE_URL = f"mysql+mysqlconnector://{DB_USER}@{DB_HOST}/{DB_NAME}"
+        SQLALCHEMY_DATABASE_URL = f"mysql+mysqlconnector://{DB_USER}@{DB_HOST}/{DB_NAME}?charset=utf8mb4"
 
 engine = create_engine(SQLALCHEMY_DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
