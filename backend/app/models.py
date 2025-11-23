@@ -58,3 +58,19 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     is_superuser = Column(Boolean, default=False)
     created_at = Column(DateTime, default=func.now())
+
+class HataRaporu(Base):
+    __tablename__ = "hata_raporlari"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    ilan_id = Column(Integer, ForeignKey('ilanlar.id'), nullable=False)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    kategori = Column(String(100), nullable=False)  # "yanlis_bilgi", "eksik_bilgi", "diger"
+    aciklama = Column(Text, nullable=False)
+    durum = Column(String(50), default="beklemede")  # "beklemede", "inceleniyor", "cozuldu", "reddedildi"
+    olusturma_tarihi = Column(DateTime, default=func.now())
+    guncellenme_tarihi = Column(DateTime, default=func.now(), onupdate=func.now())
+    
+    # İlişkiler
+    ilan = relationship("Ilan")
+    user = relationship("User")

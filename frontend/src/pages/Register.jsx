@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import axios from 'axios'
 
@@ -17,6 +17,11 @@ function Register() {
   });
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    // Sayfa açıldığında scroll pozisyonunu en üste al
+    window.scrollTo(0, 0);
+  }, []);
 
   const validate = () => {
     const newErrors = {}

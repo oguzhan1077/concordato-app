@@ -12,6 +12,7 @@ import redis.asyncio as redis
 from fastapi_limiter import FastAPILimiter
 
 from . import models, schemas, database, auth
+from .auth import get_current_user
 
 # Database tablolarını oluştur
 models.Base.metadata.create_all(bind=database.engine)
@@ -235,4 +236,99 @@ def get_stats(db: Session = Depends(get_db)):
 def get_sehirler(db: Session = Depends(get_db)):
     sehirler = db.query(models.Ilan.sehir).distinct().order_by(models.Ilan.sehir).all()
     return [s[0] for s in sehirler if s[0]]
+
+@app.get("/stats/gunluk-ilanlar")
+def get_gunluk_ilanlar(db: Session = Depends(get_db)):
+    """
+    İçinde bulunduğumuz ayın günlük ilan sayılarını döndürür.
+    """
+    from datetime import datetime
+    from collections import defaultdict
+    
+    # Bugünün tarihi ve ayın ilk günü
+    bugun = datetime.now()
+    ayin_ilk_gunu = datetime(bugun.year, bugun.month, 1)
+    
+    # Tüm ilanları çek
+    ilanlar = db.query(models.Ilan).all()
+    
+    # Günlere göre grupla
+    gunluk_sayilar = defaultdict(int)
+    
+    for ilan in ilanlar:
+        if not ilan.yayin_tarihi:
+            continue
+        
+        # Tarihi parse et
+        tarih = parse_tarih(ilan.yayin_tarihi)
+        if not tarih:
+            continue
+        
+        # Sadece bu ayın ilanlarını al
+        if tarih >= ayin_ilk_gunu and tarih <= bugun:
+            tarih_str = tarih.strftime("%Y-%m-%d")
+            gunluk_sayilar[tarih_str] += 1
+    
+    # Sonuçları sırala ve formatla
+    result = []
+    for tarih_str, count in sorted(gunluk_sayilar.items()):
+        tarih_obj = datetime.strptime(tarih_str, "%Y-%m-%d")
+        result.append({
+            "tarih": tarih_str,
+            "gun": tarih_obj.strftime("%d.%m"),
+            "sayi": count
+        })
+    
+    return result
+
+@app.post("/rapor-olustur", response_model=schemas.HataRaporuResponse)
+async def rapor_olustur(
+    rapor: schemas.HataRaporuCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """
+    Hata raporu oluşturur. Sadece giriş yapmış kullanıcılar kullanabilir.
+    
+    Güvenlik:
+    - Kullanıcı kimlik doğrulaması zorunludur
+    - İlan ID'sinin geçerli olması kontrol edilir
+    - Açıklama uzunluğu sınırlandırılmıştır (max 1000 karakter)
+    """
+    # İlanın varlığını kontrol et
+    ilan = db.query(models.Ilan).filter(models.Ilan.id == rapor.ilan_id).first()
+    if not ilan:
+        raise HTTPException(status_code=404, detail="İlan bulunamadı")
+    
+    # Aynı kullanıcının aynı ilan için kısa sürede çoklu rapor oluşturmasını engelle
+    from datetime import datetime, timedelta
+    recent_report = db.query(models.HataRaporu).filter(
+        models.HataRaporu.ilan_id == rapor.ilan_id,
+        models.HataRaporu.user_id == current_user.id,
+        models.HataRaporu.olusturma_tarihi >= datetime.now() - timedelta(hours=1)
+    ).first()
+    
+    if recent_report:
+        raise HTTPException(
+            status_code=429, 
+            detail="Bu ilan için son 1 saat içinde zaten bir rapor oluşturdunuz"
+        )
+    
+    # Yeni rapor oluştur
+    db_rapor = models.HataRaporu(
+        ilan_id=rapor.ilan_id,
+        user_id=current_user.id,
+        kategori=rapor.kategori,
+        aciklama=rapor.aciklama.strip(),
+        durum="beklemede"
+    )
+    
+    db.add(db_rapor)
+    db.commit()
+    db.refresh(db_rapor)
+    
+    return {
+        "message": "Hata raporunuz başarıyla oluşturuldu. İnceleme yapılacaktır.",
+        "rapor_id": db_rapor.id
+    }
 

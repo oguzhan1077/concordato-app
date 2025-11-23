@@ -168,3 +168,42 @@ class AuthResponse(BaseModel):
 
 class TokenData(BaseModel):
     email: Optional[str] = None
+
+# --- Hata Raporu Schemas ---
+class HataRaporuCreate(BaseModel):
+    ilan_id: int = Field(..., gt=0, description="İlan ID'si")
+    kategori: str = Field(..., description="Hata kategorisi")
+    aciklama: str = Field(..., min_length=10, max_length=1000, description="Hata açıklaması")
+    
+    @field_validator("kategori")
+    @classmethod
+    def validate_kategori(cls, value: str) -> str:
+        valid_categories = ["yanlis_bilgi", "eksik_bilgi", "kvkk_ihlali", "diger"]
+        if value not in valid_categories:
+            raise ValueError(f"Geçersiz kategori. İzin verilen değerler: {', '.join(valid_categories)}")
+        return value
+    
+    @field_validator("aciklama")
+    @classmethod
+    def validate_aciklama(cls, value: str) -> str:
+        stripped = value.strip()
+        if len(stripped) < 10:
+            raise ValueError("Açıklama en az 10 karakter olmalıdır")
+        return stripped
+
+class HataRaporu(BaseModel):
+    id: int
+    ilan_id: int
+    user_id: int
+    kategori: str
+    aciklama: str
+    durum: str
+    olusturma_tarihi: datetime
+    guncellenme_tarihi: datetime
+    
+    class Config:
+        from_attributes = True
+
+class HataRaporuResponse(BaseModel):
+    message: str
+    rapor_id: int

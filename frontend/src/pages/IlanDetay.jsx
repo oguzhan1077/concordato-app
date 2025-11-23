@@ -1,18 +1,41 @@
 import { useState, useEffect } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import axios from 'axios'
 
 const API_URL = '/api';
 
 function IlanDetay() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [ilan, setIlan] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportForm, setReportForm] = useState({
+    kategori: 'yanlis_bilgi',
+    aciklama: ''
+  });
+  const [reportError, setReportError] = useState('');
+  const [reportSuccess, setReportSuccess] = useState('');
+  const [reportLoading, setReportLoading] = useState(false);
 
   useEffect(() => {
+    // Sayfa açıldığında scroll pozisyonunu en üste al
+    window.scrollTo(0, 0);
+    
     fetchIlanDetay();
+    checkAuth();
   }, [id]);
+
+  const checkAuth = async () => {
+    try {
+      await axios.get(`${API_URL}/users/me`);
+      setIsAuthenticated(true);
+    } catch (err) {
+      setIsAuthenticated(false);
+    }
+  };
 
   const fetchIlanDetay = async () => {
     setLoading(true);
@@ -26,6 +49,59 @@ function IlanDetay() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleReportClick = () => {
+    setShowReportModal(true);
+    setReportError('');
+    setReportSuccess('');
+  };
+
+  const handleReportSubmit = async (e) => {
+    e.preventDefault();
+    setReportError('');
+    setReportSuccess('');
+
+    if (reportForm.aciklama.trim().length < 10) {
+      setReportError('Açıklama en az 10 karakter olmalıdır');
+      return;
+    }
+
+    if (reportForm.aciklama.trim().length > 1000) {
+      setReportError('Açıklama en fazla 1000 karakter olmalıdır');
+      return;
+    }
+
+    setReportLoading(true);
+
+    try {
+      await axios.post(`${API_URL}/rapor-olustur`, {
+        ilan_id: parseInt(id),
+        kategori: reportForm.kategori,
+        aciklama: reportForm.aciklama.trim()
+      });
+
+      setReportSuccess('Raporunuz başarıyla gönderildi. Teşekkür ederiz!');
+      setReportForm({ kategori: 'yanlis_bilgi', aciklama: '' });
+      
+      setTimeout(() => {
+        setShowReportModal(false);
+        setReportSuccess('');
+      }, 2000);
+    } catch (err) {
+      console.error('Rapor gönderme hatası:', err);
+      setReportError(err.response?.data?.detail || 'Rapor gönderilemedi. Lütfen tekrar deneyin.');
+    } finally {
+      setReportLoading(false);
+    }
+  };
+
+  const handleReportChange = (e) => {
+    setReportForm({
+      ...reportForm,
+      [e.target.name]: e.target.value
+    });
+    if (reportError) setReportError('');
   };
 
   if (loading) {
@@ -136,21 +212,40 @@ function IlanDetay() {
               </svg>
               İşlemler
             </h3>
-            {ilan.link ? (
-              <a 
-                href={ilan.link} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="flex items-center justify-center px-4 py-3 bg-blue-600 dark:bg-blue-700 text-white text-sm font-medium rounded-lg hover:bg-blue-700 dark:hover:bg-blue-800 transition-all shadow-sm hover:shadow-md"
-              >
-                Orijinal İlanı Görüntüle
-                <svg className="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
-              </a>
-            ) : (
-              <p className="text-sm text-gray-500 dark:text-gray-400 text-center">Link mevcut değil</p>
-            )}
+            <div className="space-y-3">
+              {ilan.link ? (
+                <a 
+                  href={ilan.link} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center px-4 py-3 bg-blue-600 dark:bg-blue-700 text-white text-sm font-medium rounded-lg hover:bg-blue-700 dark:hover:bg-blue-800 transition-all shadow-sm hover:shadow-md"
+                >
+                  Orijinal İlanı Görüntüle
+                  <svg className="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                </a>
+              ) : (
+                <p className="text-sm text-gray-500 dark:text-gray-400 text-center">Link mevcut değil</p>
+              )}
+              
+              {isAuthenticated && (
+                <>
+                  <button
+                    onClick={handleReportClick}
+                    className="flex items-center justify-center w-full px-4 py-3 bg-red-500 dark:bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-600 dark:hover:bg-red-700 transition-all shadow-sm hover:shadow-md"
+                  >
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    Hata Bildir
+                  </button>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
+                    İlanda hata gördüyseniz bildirebilirsiniz
+                  </p>
+                </>
+              )}
+            </div>
           </div>
         </div>
 
@@ -245,6 +340,103 @@ function IlanDetay() {
           </div>
         )}
       </div>
+
+      {/* Hata Bildirimi Modal */}
+      {showReportModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" onClick={() => setShowReportModal(false)}>
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center">
+                <svg className="w-6 h-6 mr-2 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                Hata Bildir
+              </h3>
+              <button
+                onClick={() => setShowReportModal(false)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              Bu ilanda gördüğünüz hataları bize bildirin. Raporunuz incelenecektir.
+            </p>
+
+            {reportSuccess && (
+              <div className="mb-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-600 dark:text-green-400 px-4 py-3 rounded text-sm">
+                {reportSuccess}
+              </div>
+            )}
+
+            {reportError && (
+              <div className="mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded text-sm">
+                {reportError}
+              </div>
+            )}
+
+            <form onSubmit={handleReportSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Hata Kategorisi
+                </label>
+                <select
+                  name="kategori"
+                  value={reportForm.kategori}
+                  onChange={handleReportChange}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+                  required
+                >
+                  <option value="yanlis_bilgi">Yanlış Bilgi</option>
+                  <option value="eksik_bilgi">Eksik Bilgi</option>
+                  <option value="kvkk_ihlali">KVKK İhlali (TC, Adres vb.)</option>
+                  <option value="diger">Diğer</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Açıklama (En az 10 karakter)
+                </label>
+                <textarea
+                  name="aciklama"
+                  value={reportForm.aciklama}
+                  onChange={handleReportChange}
+                  rows="4"
+                  placeholder="Lütfen hatayı detaylı bir şekilde açıklayın..."
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 resize-none"
+                  minLength={10}
+                  maxLength={1000}
+                  required
+                ></textarea>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  {reportForm.aciklama.length}/1000 karakter
+                </p>
+              </div>
+
+              <div className="flex space-x-3">
+                <button
+                  type="button"
+                  onClick={() => setShowReportModal(false)}
+                  className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                >
+                  İptal
+                </button>
+                <button
+                  type="submit"
+                  disabled={reportLoading}
+                  className="flex-1 px-4 py-2 bg-red-500 dark:bg-red-600 text-white rounded-lg hover:bg-red-600 dark:hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {reportLoading ? 'Gönderiliyor...' : 'Gönder'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

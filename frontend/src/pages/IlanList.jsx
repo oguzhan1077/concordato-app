@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import axios from 'axios'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 
 const API_URL = '/api';
 
 function IlanList() {
   const [ilanlar, setIlanlar] = useState([]);
   const [stats, setStats] = useState(null);
+  const [gunlukIlanlar, setGunlukIlanlar] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sehirler, setSehirler] = useState([]);
   const [filterSehir, setFilterSehir] = useState('Tümü');
@@ -19,10 +21,17 @@ function IlanList() {
   const pageSize = 12;
 
   useEffect(() => {
+    // Filtre veya sayfa değiştiğinde scroll pozisyonunu en üste al
+    window.scrollTo(0, 0);
+    
     fetchData();
     fetchStats();
     fetchSehirler();
   }, [filterSehir, currentPage, baslangicTarihi, bitisTarihi, search]);
+
+  useEffect(() => {
+    fetchGunlukIlanlar();
+  }, []); // Sadece sayfa yüklendiğinde bir kez çalışır
 
   const fetchData = async () => {
     setLoading(true);
@@ -71,6 +80,18 @@ function IlanList() {
       if (import.meta.env.DEV) {
         console.warn("Şehirler yüklenemedi:", err.message);
       }
+    }
+  };
+
+  const fetchGunlukIlanlar = async () => {
+    try {
+      const res = await axios.get(`${API_URL}/stats/gunluk-ilanlar`);
+      setGunlukIlanlar(res.data);
+    } catch (err) {
+      if (import.meta.env.DEV) {
+        console.warn("Günlük ilanlar yüklenemedi:", err.message);
+      }
+      setGunlukIlanlar([]);
     }
   };
 
@@ -128,6 +149,57 @@ function IlanList() {
               <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Son Güncelleme</h3>
               <p className="text-3xl font-bold text-purple-600 dark:text-purple-400">{stats.last_update}</p>
             </div>
+          </div>
+        )}
+
+        {/* Günlük İlan Grafiği */}
+        {gunlukIlanlar.length > 0 && (
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm mb-6">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+              Bu Ayki Günlük İlan Sayıları
+              <span className="text-sm font-normal text-gray-500 dark:text-gray-400 ml-2">
+                ({new Date().toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' })})
+              </span>
+            </h2>
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart 
+                data={gunlukIlanlar}
+                margin={{ top: 5, right: 20, left: 0, bottom: 5 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.2} />
+                <XAxis 
+                  dataKey="gun" 
+                  stroke="#6B7280"
+                  style={{ fontSize: '12px' }}
+                />
+                <YAxis 
+                  stroke="#6B7280"
+                  style={{ fontSize: '12px' }}
+                  allowDecimals={false}
+                />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: '#1F2937', 
+                    border: '1px solid #374151',
+                    borderRadius: '8px',
+                    color: '#F9FAFB'
+                  }}
+                  labelStyle={{ color: '#F9FAFB' }}
+                />
+                <Legend 
+                  wrapperStyle={{ fontSize: '14px' }}
+                />
+                <Line 
+                  type="monotone" 
+                  dataKey="sayi" 
+                  name="İlan Sayısı"
+                  stroke="#3B82F6" 
+                  strokeWidth={2}
+                  dot={{ fill: '#3B82F6', r: 4 }}
+                  activeDot={{ r: 6 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
           </div>
         )}
 
