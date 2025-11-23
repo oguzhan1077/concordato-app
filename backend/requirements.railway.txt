@@ -1,0 +1,16 @@
+fastapi
+uvicorn
+sqlalchemy
+mysql-connector-python
+pydantic
+pydantic[email]
+python-dotenv
+requests
+beautifulsoup4
+openai
+passlib[bcrypt]
+python-jose[cryptography]
+python-multipart
+fastapi-limiter
+redis
+
