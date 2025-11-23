@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import Logo from './Logo'
 
-const API_URL = '/api';
+const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 function Layout({ children }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false)

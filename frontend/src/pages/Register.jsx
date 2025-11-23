@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import axios from 'axios'
 
-const API_URL = '/api'
+const API_URL = import.meta.env.VITE_API_URL || '/api'
 const NAME_REGEX = /^[A-Za-zÇĞİÖŞÜçğöşıü0-9\s.'-]{2,100}$/
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,128}$/
