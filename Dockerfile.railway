@@ -17,9 +17,13 @@ COPY backend/ .
 EXPOSE 8000
 
 # Startup script oluştur
-RUN echo '#!/bin/sh\nuvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}' > /start.sh && \
-    chmod +x /start.sh
+COPY <<EOF /start.sh
+#!/bin/sh
+exec uvicorn app.main:app --host 0.0.0.0 --port \${PORT:-8000}
+EOF
+
+RUN chmod +x /start.sh
 
 # API'yi başlat
-CMD ["/bin/sh", "/start.sh"]
+ENTRYPOINT ["/bin/sh", "/start.sh"]
 
