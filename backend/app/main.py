@@ -1,7 +1,9 @@
 import os
 
-from fastapi import FastAPI, Depends, HTTPException, Query
+from fastapi import FastAPI, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
+from fastapi.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 from typing import List, Optional
@@ -40,6 +42,40 @@ async def shutdown_event():
         await FastAPILimiter.close()
     except Exception as e:
         print(f"Redis kapatma hatası: {e}")
+
+# Güvenlik Header Middleware
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        
+        # Netlify domain'ini environment variable'dan al
+        netlify_domain = os.getenv("NETLIFY_DOMAIN", "")
+        railway_domain = os.getenv("RAILWAY_PUBLIC_DOMAIN", "concordato-app-production.up.railway.app")
+        
+        # CSP Policy - Netlify ve Railway domain'lerini izin ver
+        csp_domains = f"https://{railway_domain}"
+        if netlify_domain:
+            csp_domains += f" https://{netlify_domain}"
+        
+        response.headers["Content-Security-Policy"] = (
+            f"default-src 'self'; "
+            f"script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
+            f"style-src 'self' 'unsafe-inline'; "
+            f"img-src 'self' data: https:; "
+            f"font-src 'self' data:; "
+            f"connect-src 'self' {csp_domains}; "
+            f"frame-ancestors 'none';"
+        )
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+        
+        return response
+
+# Güvenlik header middleware'ini ekle
+app.add_middleware(SecurityHeadersMiddleware)
 
 # Auth Router'ı ekle
 app.include_router(auth.router, tags=["auth"])

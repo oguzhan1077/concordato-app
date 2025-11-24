@@ -5,6 +5,15 @@ import axios from 'axios'
 import App from './App.jsx'
 import './index.css'
 
+// Production'da console.log'ları devre dışı bırak (güvenlik)
+if (import.meta.env.PROD) {
+  console.log = () => {}
+  console.error = () => {}
+  console.warn = () => {}
+  console.info = () => {}
+  console.debug = () => {}
+}
+
 axios.defaults.withCredentials = true
 
 // Request interceptor - Authorization header ekle
@@ -64,8 +73,9 @@ axios.interceptors.response.use(
       }
     }
     
-    // 401 hatalarını konsola yazdırma (giriş yapılmamış kullanıcı normal bir durum)
-    if (error.response?.status !== 401) {
+    // Production'da hataları konsola yazdırma (güvenlik)
+    // Development modunda hata göster
+    if (import.meta.env.DEV && error.response?.status !== 401) {
       console.error('API Error:', error)
     }
     return Promise.reject(error)

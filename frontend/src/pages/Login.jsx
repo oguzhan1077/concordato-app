@@ -62,7 +62,9 @@ function Login() {
 
       navigate('/')
     } catch (err) {
-      console.error('Login error:', err)
+      if (import.meta.env.DEV) {
+        console.error('Login error:', err)
+      }
       setError(err.response?.data?.detail || 'E-posta veya şifre hatalı')
     } finally {
       setLoading(false)

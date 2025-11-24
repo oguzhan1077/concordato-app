@@ -50,7 +50,9 @@ function IlanDetay() {
       }
     } catch (err) {
       // Hata durumunda sessizce geç
-      console.log('Rapor durumu kontrol edilemedi:', err);
+      if (import.meta.env.DEV) {
+        console.log('Rapor durumu kontrol edilemedi:', err);
+      }
     } finally {
       setReportStatusLoading(false);
     }
@@ -63,7 +65,9 @@ function IlanDetay() {
       const res = await axios.get(`${API_URL}/ilanlar/${id}`);
       setIlan(res.data);
     } catch (err) {
-      console.error("İlan detay hatası:", err);
+      if (import.meta.env.DEV) {
+        console.error("İlan detay hatası:", err);
+      }
       setError("İlan bulunamadı");
     } finally {
       setLoading(false);
@@ -111,7 +115,9 @@ function IlanDetay() {
         setReportSuccess('');
       }, 2000);
     } catch (err) {
-      console.error('Rapor gönderme hatası:', err);
+      if (import.meta.env.DEV) {
+        console.error('Rapor gönderme hatası:', err);
+      }
       setReportError(err.response?.data?.detail || 'Rapor gönderilemedi. Lütfen tekrar deneyin.');
     } finally {
       setReportLoading(false);

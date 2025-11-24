@@ -59,7 +59,9 @@ function AdminHataRaporlari() {
       setTotalPages(res.data.total_pages);
       
     } catch (err) {
-      console.error("Admin erişim hatası:", err);
+      if (import.meta.env.DEV) {
+        console.error("Admin erişim hatası:", err);
+      }
       navigate('/', { replace: true });
     } finally {
       setLoading(false);
