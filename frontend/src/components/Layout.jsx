@@ -68,6 +68,9 @@ function Layout({ children }) {
     } catch (error) {
       // Logout hatası önemli değil - zaten session temizlenecek
     }
+    // localStorage'dan token'ları temizle
+    localStorage.removeItem('access_token')
+    localStorage.removeItem('refresh_token')
     setIsLoggedIn(false);
     setUser(null);
     setIsUserMenuOpen(false);

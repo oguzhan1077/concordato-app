@@ -27,6 +27,10 @@ def _get_redis_connection():
 
 
 def _set_cookie(response: Response, key: str, value: str, max_age: int):
+    # Cross-domain cookie için domain belirtilmemeli (None olmalı)
+    # Eğer COOKIE_DOMAIN ayarlanmışsa ve cross-domain çalışmıyorsa None yap
+    cookie_domain = None if COOKIE_DOMAIN else None  # Her zaman None (cross-domain için)
+    
     response.set_cookie(
         key=key,
         value=value,
@@ -35,7 +39,7 @@ def _set_cookie(response: Response, key: str, value: str, max_age: int):
         samesite=COOKIE_SAMESITE,
         max_age=max_age,
         path="/",
-        domain=COOKIE_DOMAIN
+        domain=cookie_domain  # None = cross-domain çalışır
     )
 
 
@@ -201,6 +205,8 @@ def login_for_access_token(
     return {
         "message": "Giriş başarılı",
         "token_type": "bearer",
+        "access_token": access_token,  # Frontend localStorage için
+        "refresh_token": refresh_token,  # Frontend localStorage için
         "expires_in": ACCESS_TOKEN_MAX_AGE,
         "refresh_expires_in": REFRESH_TOKEN_MAX_AGE
     }
@@ -211,7 +217,11 @@ def login_for_access_token(
     dependencies=[Depends(RateLimiter(times=30, seconds=60))]
 )
 async def refresh_access_token(request: Request, response: Response, db: Session = Depends(get_db)):
-    refresh_token = request.cookies.get(REFRESH_TOKEN_COOKIE)
+    # Önce Authorization header'dan token al (cross-domain için)
+    refresh_token = _extract_token_from_request(request)
+    # Eğer header'da yoksa cookie'den al
+    if not refresh_token:
+        refresh_token = request.cookies.get(REFRESH_TOKEN_COOKIE)
     if not refresh_token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token missing")
     try:
@@ -245,6 +255,8 @@ async def refresh_access_token(request: Request, response: Response, db: Session
     return {
         "message": "Token yenilendi",
         "token_type": "bearer",
+        "access_token": new_access_token,  # Frontend localStorage için
+        "refresh_token": new_refresh_token,  # Frontend localStorage için
         "expires_in": ACCESS_TOKEN_MAX_AGE,
         "refresh_expires_in": REFRESH_TOKEN_MAX_AGE
     }

@@ -46,11 +46,19 @@ function Login() {
       params.append('username', email)
       params.append('password', password)
 
-      await axios.post(`${API_URL}/token`, params, {
+      const response = await axios.post(`${API_URL}/token`, params, {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded'
         }
       })
+
+      // Token'ları localStorage'a kaydet (cross-domain için)
+      if (response.data.access_token) {
+        localStorage.setItem('access_token', response.data.access_token)
+      }
+      if (response.data.refresh_token) {
+        localStorage.setItem('refresh_token', response.data.refresh_token)
+      }
 
       navigate('/')
     } catch (err) {

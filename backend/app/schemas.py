@@ -159,10 +159,13 @@ class RegisterResponse(BaseModel):
 
 class AuthResponse(BaseModel):
     """
-    Kimlik doğrulama response'u - Token bilgilerini HttpOnly cookie üzerinden gönderir.
+    Kimlik doğrulama response'u - Token bilgilerini hem cookie hem de response body'de gönderir.
+    Cross-domain için localStorage desteği eklenmiştir.
     """
     message: str
     token_type: str = "bearer"
+    access_token: Optional[str] = None  # Frontend localStorage için (cross-domain)
+    refresh_token: Optional[str] = None  # Frontend localStorage için (cross-domain)
     expires_in: int
     refresh_expires_in: int
 
