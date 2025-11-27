@@ -1,32 +1,10 @@
-import { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import axios from 'axios'
+import { useAuth } from '../contexts/AuthContext'
 import Logo from './Logo'
-
-const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 function Sidebar() {
   const location = useLocation();
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [user, setUser] = useState(null);
-
-  useEffect(() => {
-    checkUser();
-  }, [location.pathname]); // Sayfa değiştiğinde kullanıcı durumunu kontrol et
-
-  const checkUser = async () => {
-    try {
-      const res = await axios.get(`${API_URL}/users/me`);
-      setUser(res.data);
-      if (res.data.is_superuser) {
-        setIsAdmin(true);
-      }
-    } catch (err) {
-      // Kullanıcı giriş yapmamış
-      setUser(null);
-      setIsAdmin(false);
-    }
-  };
+  const { user, isAdmin } = useAuth();
 
   const menuItems = [
     { path: '/', label: 'Anasayfa', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' },

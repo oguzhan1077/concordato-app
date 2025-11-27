@@ -1,16 +1,17 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import axios from 'axios'
+import { useAuth } from '../contexts/AuthContext'
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 function IlanDetay() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
   const [ilan, setIlan] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportForm, setReportForm] = useState({
     kategori: 'yanlis_bilgi',
@@ -63,19 +64,7 @@ function IlanDetay() {
     }
     
     fetchIlanDetay();
-    checkAuth();
   }, [id]);
-
-  const checkAuth = async () => {
-    try {
-      await axios.get(`${API_URL}/users/me`);
-      setIsAuthenticated(true);
-    } catch (err) {
-      setIsAuthenticated(false);
-      setUserReport(null);
-      // 401 hatası normal bir durum (giriş yapılmamış), sessizce geç
-    }
-  };
 
   // Kullanıcı giriş yapmışsa ve id geçerliyse, rapor durumunu kontrol et
   useEffect(() => {

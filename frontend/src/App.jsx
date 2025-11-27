@@ -1,5 +1,6 @@
 import { Routes, Route } from 'react-router-dom'
 import { lazy, Suspense } from 'react'
+import { AuthProvider } from './contexts/AuthContext'
 import Layout from './components/Layout'
 import IlanList from './pages/IlanList'
 import IlanDetay from './pages/IlanDetay'
@@ -13,22 +14,24 @@ const AdminHataRaporlari = lazy(() => import('./pages/AdminHataRaporlari'));
 
 function App() {
   return (
-    <Layout>
-      <Routes>
-        <Route path="/" element={<IlanList />} />
-        <Route path="/ilan/:id" element={<IlanDetay />} />
-        <Route path="/kayit" element={<Register />} />
-        <Route path="/giris" element={<Login />} />
-        <Route 
-          path="/admin/hata-raporlari" 
-          element={
-            <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Yükleniyor...</div>}>
-              <AdminHataRaporlari />
-            </Suspense>
-          } 
-        />
-      </Routes>
-    </Layout>
+    <AuthProvider>
+      <Layout>
+        <Routes>
+          <Route path="/" element={<IlanList />} />
+          <Route path="/ilan/:id" element={<IlanDetay />} />
+          <Route path="/kayit" element={<Register />} />
+          <Route path="/giris" element={<Login />} />
+          <Route 
+            path="/admin/hata-raporlari" 
+            element={
+              <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Yükleniyor...</div>}>
+                <AdminHataRaporlari />
+              </Suspense>
+            } 
+          />
+        </Routes>
+      </Layout>
+    </AuthProvider>
   )
 }
 

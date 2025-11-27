@@ -1,15 +1,16 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import axios from 'axios'
+import { useAuth } from '../contexts/AuthContext'
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 function AdminHataRaporlari() {
   const navigate = useNavigate();
+  const { user, isAdmin, authChecked } = useAuth();
   const [raporlar, setRaporlar] = useState([]);
   const [loading, setLoading] = useState(true);
   const [durumFilter, setDurumFilter] = useState('Tümü');
-  const [isAdmin, setIsAdmin] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
@@ -19,8 +20,14 @@ function AdminHataRaporlari() {
   // Sayfa yüklendiğinde güvenlik kontrolü
   useEffect(() => {
     window.scrollTo(0, 0);
-    checkAdminAndFetch();
-  }, [durumFilter, currentPage]);
+    if (authChecked) {
+      if (!isAdmin) {
+        navigate('/', { replace: true });
+        return;
+      }
+      fetchRaporlar();
+    }
+  }, [durumFilter, currentPage, authChecked, isAdmin, navigate]);
 
   // Dışarı tıklama kontrolü
   useEffect(() => {
@@ -33,20 +40,10 @@ function AdminHataRaporlari() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [openDropdownId]);
 
-  const checkAdminAndFetch = async () => {
+  const fetchRaporlar = async () => {
     setLoading(true);
     try {
-      // 1. Önce kullanıcı yetkisini kontrol et
-      const userRes = await axios.get(`${API_URL}/users/me`);
-      
-      if (!userRes.data.is_superuser) {
-        navigate('/', { replace: true });
-        return;
-      }
-      
-      setIsAdmin(true);
-
-      // 2. Yetkili ise raporları çek (sayfalama ile)
+      // Yetkili ise raporları çek (sayfalama ile)
       const skip = (currentPage - 1) * pageSize;
       let url = `${API_URL}/admin/hata-raporlari?skip=${skip}&limit=${pageSize}`;
       if (durumFilter !== 'Tümü') {
