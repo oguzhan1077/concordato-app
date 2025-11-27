@@ -27,18 +27,40 @@ function Layout({ children }) {
     } catch (err) {
       // 401 Unauthorized: Giriş yapmamış kullanıcı veya token süresi dolmuş
       if (err.response?.status === 401) {
-        // Sadece cookie'de refresh_token varsa yenileme dene
-        const hasRefreshToken = document.cookie.includes('refresh_token');
+        // Cookie veya localStorage'da refresh_token varsa yenileme dene
+        const hasRefreshTokenCookie = document.cookie.includes('refresh_token');
+        const hasRefreshTokenLocal = localStorage.getItem('refresh_token');
         
-        if (hasRefreshToken) {
+        if (hasRefreshTokenCookie || hasRefreshTokenLocal) {
           try {
-            // Token refresh dene
-            await axios.post(`${API_URL}/refresh`);
-            await fetchProfile();
-            return;
+            const refreshToken = localStorage.getItem('refresh_token') || 
+                                 document.cookie.split('; ').find(row => row.startsWith('refresh_token='))?.split('=')[1];
+            
+            if (refreshToken) {
+              // Token refresh dene
+              const refreshResponse = await axios.post(`${API_URL}/refresh`, {}, {
+                headers: {
+                  'Authorization': `Bearer ${refreshToken}`
+                }
+              });
+              
+              // Yeni token'ları kaydet
+              if (refreshResponse.data.access_token) {
+                localStorage.setItem('access_token', refreshResponse.data.access_token);
+              }
+              if (refreshResponse.data.refresh_token) {
+                localStorage.setItem('refresh_token', refreshResponse.data.refresh_token);
+              }
+              
+              // Profili tekrar al
+              await fetchProfile();
+              return;
+            }
           } catch (refreshError) {
-            // Refresh de başarısız - sessizce devam et
-            // console.log kullanmıyoruz çünkü normal bir durum
+            // Refresh de başarısız - token'ları temizle
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('refresh_token');
+            // Sessizce devam et - normal bir durum
           }
         }
       }

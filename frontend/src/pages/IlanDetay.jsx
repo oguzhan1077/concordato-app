@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import axios from 'axios'
 
@@ -22,9 +22,45 @@ function IlanDetay() {
   const [userReport, setUserReport] = useState(null);
   const [reportStatusLoading, setReportStatusLoading] = useState(false);
 
+  const checkReportStatus = useCallback(async () => {
+    // id kontrolü
+    if (!id || isNaN(parseInt(id))) {
+      return;
+    }
+    
+    setReportStatusLoading(true);
+    try {
+      const res = await axios.get(`${API_URL}/ilan/${id}/rapor-durumu`);
+      if (res.data && res.data.has_report) {
+        setUserReport(res.data.rapor);
+      } else {
+        setUserReport(null);
+      }
+    } catch (err) {
+      // 401 hatası normal (giriş yapılmamış veya token geçersiz)
+      // 404 hatası normal (rapor yok)
+      if (err.response?.status !== 401 && err.response?.status !== 404) {
+        // Beklenmeyen hatalar için sadece development'ta log
+        if (import.meta.env.DEV) {
+          console.log('Rapor durumu kontrol edilemedi:', err);
+        }
+      }
+      setUserReport(null);
+    } finally {
+      setReportStatusLoading(false);
+    }
+  }, [id]);
+
   useEffect(() => {
     // Sayfa açıldığında scroll pozisyonunu en üste al
     window.scrollTo(0, 0);
+    
+    // id parametresi yoksa veya geçersizse işlem yapma
+    if (!id || isNaN(parseInt(id))) {
+      setError("Geçersiz ilan ID'si");
+      setLoading(false);
+      return;
+    }
     
     fetchIlanDetay();
     checkAuth();
@@ -34,29 +70,21 @@ function IlanDetay() {
     try {
       await axios.get(`${API_URL}/users/me`);
       setIsAuthenticated(true);
-      // Kullanıcı giriş yapmışsa, rapor durumunu kontrol et
-      checkReportStatus();
     } catch (err) {
       setIsAuthenticated(false);
+      setUserReport(null);
+      // 401 hatası normal bir durum (giriş yapılmamış), sessizce geç
     }
   };
 
-  const checkReportStatus = async () => {
-    setReportStatusLoading(true);
-    try {
-      const res = await axios.get(`${API_URL}/ilan/${id}/rapor-durumu`);
-      if (res.data.has_report) {
-        setUserReport(res.data.rapor);
-      }
-    } catch (err) {
-      // Hata durumunda sessizce geç
-      if (import.meta.env.DEV) {
-        console.log('Rapor durumu kontrol edilemedi:', err);
-      }
-    } finally {
-      setReportStatusLoading(false);
+  // Kullanıcı giriş yapmışsa ve id geçerliyse, rapor durumunu kontrol et
+  useEffect(() => {
+    if (isAuthenticated && id && !isNaN(parseInt(id))) {
+      checkReportStatus();
+    } else {
+      setUserReport(null);
     }
-  };
+  }, [isAuthenticated, id, checkReportStatus]);
 
   const fetchIlanDetay = async () => {
     setLoading(true);

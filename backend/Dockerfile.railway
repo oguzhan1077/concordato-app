@@ -8,14 +8,17 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 # Railway için özel requirements (scraper olmadan)
-COPY requirements.railway.txt requirements.txt
+# Railway build context root'ta olduğu için backend/ prefix'i gerekli
+COPY backend/requirements.railway.txt requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+# Backend klasörünü kopyala (Railway build context root'ta)
+COPY backend/ .
 
-# FastAPI port
+# FastAPI port (Railway otomatik PORT set eder)
 EXPOSE 8000
 
-# API'yi başlat
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# API'yi başlat (Railway PORT environment variable'ını kullan)
+# Railway otomatik olarak PORT environment variable'ını set eder
+CMD sh -c "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"
 
