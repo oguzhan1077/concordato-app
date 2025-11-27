@@ -60,6 +60,8 @@ function Login() {
         localStorage.setItem('refresh_token', response.data.refresh_token)
       }
 
+      // Auth değişikliğini bildir (Layout'un güncellenmesi için)
+      window.dispatchEvent(new Event('auth-changed'))
       navigate('/')
     } catch (err) {
       if (import.meta.env.DEV) {

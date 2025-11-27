@@ -14,12 +14,46 @@ function Layout({ children }) {
   
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [user, setUser] = useState(null)
+  const [authChecked, setAuthChecked] = useState(false)
+
+  // JWT token'ı decode ederek expire zamanını kontrol et
+  const isTokenValid = useCallback(() => {
+    const accessToken = localStorage.getItem('access_token');
+    if (!accessToken) {
+      return false;
+    }
+    
+    try {
+      // JWT token'ı decode et (base64)
+      const payload = JSON.parse(atob(accessToken.split('.')[1]));
+      const exp = payload.exp;
+      if (!exp) {
+        return false;
+      }
+      
+      // Token expire olmuş mu? (30 saniye buffer ekle)
+      const now = Math.floor(Date.now() / 1000);
+      return exp > (now + 30);
+    } catch (err) {
+      // Token decode edilemezse geçersiz say
+      return false;
+    }
+  }, []);
 
   const checkAuth = useCallback(async () => {
+    // Token yoksa veya geçersizse direkt çık
+    if (!isTokenValid()) {
+      setIsLoggedIn(false);
+      setUser(null);
+      setAuthChecked(true);
+      return;
+    }
+
     const fetchProfile = async () => {
       const res = await axios.get(`${API_URL}/users/me`);
       setUser(res.data);
       setIsLoggedIn(true);
+      setAuthChecked(true);
     };
 
     try {
@@ -67,12 +101,48 @@ function Layout({ children }) {
       // Giriş yapılmamış durumda
       setIsLoggedIn(false);
       setUser(null);
+      setAuthChecked(true);
     }
-  }, []);
+  }, [isTokenValid]);
 
+  // Sadece ilk yüklemede ve token geçersizse kontrol et
   useEffect(() => {
-    checkAuth();
-  }, [checkAuth, location.pathname]);
+    // İlk yüklemede veya token geçersizse kontrol et
+    if (!authChecked || !isTokenValid()) {
+      checkAuth();
+    }
+  }, []); // Sadece mount'ta çalışır
+
+  // Token değiştiğinde kontrol et (login/logout sonrası)
+  useEffect(() => {
+    const handleStorageChange = () => {
+      if (!isTokenValid()) {
+        setIsLoggedIn(false);
+        setUser(null);
+        setAuthChecked(false);
+      } else if (!authChecked) {
+        checkAuth();
+      }
+    };
+    
+    // Custom event listener (aynı tab'da localStorage değişiklikleri için)
+    const handleAuthChange = () => {
+      if (isTokenValid()) {
+        checkAuth();
+      } else {
+        setIsLoggedIn(false);
+        setUser(null);
+        setAuthChecked(false);
+      }
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('auth-changed', handleAuthChange);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('auth-changed', handleAuthChange);
+    };
+  }, [authChecked, isTokenValid, checkAuth]);
 
   useEffect(() => {
     const savedDarkMode = localStorage.getItem('darkMode') === 'true';
@@ -95,7 +165,10 @@ function Layout({ children }) {
     localStorage.removeItem('refresh_token')
     setIsLoggedIn(false);
     setUser(null);
+    setAuthChecked(false);
     setIsUserMenuOpen(false);
+    // Auth değişikliğini bildir
+    window.dispatchEvent(new Event('auth-changed'));
     navigate('/');
   };
 
