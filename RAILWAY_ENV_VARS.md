@@ -8,9 +8,9 @@ Railway Dashboard > Backend Service > Variables sekmesine şunları ekle:
 # Database (Railway MySQL Plugin'den alacaksın)
 MYSQL_URL=mysql://root:password@host:port/railway
 # VEYA ayrı ayrı:
-DB_HOST=hopper.proxy.rlwy.net
+DB_HOST=your-mysql-host.railway.app
 DB_USER=root
-DB_PASSWORD=qwlzRDsVGGVjDdoGvAveGynDYtpbyZKs
+DB_PASSWORD=your-mysql-password-here
 DB_NAME=railway
 
 # Redis (Railway Redis Plugin'den alacaksın)
