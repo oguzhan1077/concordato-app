@@ -83,3 +83,5 @@ RAILWAY_PUBLIC_DOMAIN=concordato-app-production.up.railway.app  # CSP için Rail
 4. Güvenlik header'larının göründüğünü doğrulayın
 
 
+
+

@@ -31,6 +31,21 @@ axios.interceptors.request.use(
   }
 )
 
+// Refresh token'ın geçerliliğini kontrol et
+const isRefreshTokenValid = (token) => {
+  if (!token) return false
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]))
+    const exp = payload.exp
+    const tokenType = payload.type
+    if (!exp || tokenType !== 'refresh') return false
+    const now = Math.floor(Date.now() / 1000)
+    return exp > now
+  } catch {
+    return false
+  }
+}
+
 // Response interceptor - 401 hatalarını yönet ve token yenile
 axios.interceptors.response.use(
   (response) => response,
@@ -38,38 +53,47 @@ axios.interceptors.response.use(
     const originalRequest = error.config
     
     // 401 hatası ve henüz retry yapılmamışsa
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // NOT: /refresh endpoint'i için retry yapma (sonsuz döngüyü önle)
+    if (error.response?.status === 401 && !originalRequest._retry && !originalRequest.url?.includes('/refresh')) {
       originalRequest._retry = true
       
       // Refresh token ile yenileme dene
       const refreshToken = localStorage.getItem('refresh_token')
-      if (refreshToken) {
-        try {
-          const API_URL = import.meta.env.VITE_API_URL || '/api'
-          const response = await axios.post(`${API_URL}/refresh`, {}, {
-            headers: {
-              'Authorization': `Bearer ${refreshToken}`
-            }
-          })
-          
-          // Yeni token'ları kaydet
-          if (response.data.access_token) {
-            localStorage.setItem('access_token', response.data.access_token)
+      
+      // Refresh token geçerli değilse direkt reddet
+      if (!refreshToken || !isRefreshTokenValid(refreshToken)) {
+        localStorage.removeItem('access_token')
+        localStorage.removeItem('refresh_token')
+        return Promise.reject(error)
+      }
+      
+      try {
+        const API_URL = import.meta.env.VITE_API_URL || '/api'
+        const response = await axios.post(`${API_URL}/refresh`, {}, {
+          headers: {
+            'Authorization': `Bearer ${refreshToken}`
           }
-          if (response.data.refresh_token) {
-            localStorage.setItem('refresh_token', response.data.refresh_token)
-          }
-          
-          // Orijinal isteği yeni token ile tekrar dene
-          originalRequest.headers.Authorization = `Bearer ${response.data.access_token}`
-          return axios(originalRequest)
-        } catch (refreshError) {
-          // Refresh başarısız - token'ları temizle ve login'e yönlendir
-          localStorage.removeItem('access_token')
-          localStorage.removeItem('refresh_token')
-          // Sessizce reddet (kullanıcı login sayfasına yönlendirilecek)
-          return Promise.reject(refreshError)
+        })
+        
+        // Yeni token'ları kaydet
+        if (response.data.access_token) {
+          localStorage.setItem('access_token', response.data.access_token)
         }
+        if (response.data.refresh_token) {
+          localStorage.setItem('refresh_token', response.data.refresh_token)
+        }
+        
+        // Orijinal isteği yeni token ile tekrar dene
+        originalRequest.headers.Authorization = `Bearer ${response.data.access_token}`
+        return axios(originalRequest)
+      } catch (refreshError) {
+        // Refresh başarısız - token'ları temizle
+        localStorage.removeItem('access_token')
+        localStorage.removeItem('refresh_token')
+        // Auth değişikliğini bildir
+        window.dispatchEvent(new Event('auth-changed'))
+        // Sessizce reddet (kullanıcı login sayfasına yönlendirilecek)
+        return Promise.reject(refreshError)
       }
     }
     

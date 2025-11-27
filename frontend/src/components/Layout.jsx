@@ -40,76 +40,83 @@ function Layout({ children }) {
     }
   }, []);
 
+  // Refresh token'ın geçerliliğini kontrol et
+  const isRefreshTokenValid = useCallback(() => {
+    const refreshToken = localStorage.getItem('refresh_token');
+    if (!refreshToken) {
+      return false;
+    }
+    
+    try {
+      // JWT token'ı decode et (base64)
+      const payload = JSON.parse(atob(refreshToken.split('.')[1]));
+      const exp = payload.exp;
+      const tokenType = payload.type;
+      
+      if (!exp || tokenType !== 'refresh') {
+        return false;
+      }
+      
+      // Token expire olmuş mu?
+      const now = Math.floor(Date.now() / 1000);
+      return exp > now;
+    } catch (err) {
+      // Token decode edilemezse geçersiz say
+      return false;
+    }
+  }, []);
+
   const checkAuth = useCallback(async () => {
-    // Token yoksa veya geçersizse direkt çık
+    // Access token yoksa veya geçersizse
     if (!isTokenValid()) {
+      // Refresh token da geçersizse direkt çık (axios interceptor zaten refresh deneyecek)
+      if (!isRefreshTokenValid()) {
+        setIsLoggedIn(false);
+        setUser(null);
+        setAuthChecked(true);
+        return;
+      }
+      // Refresh token geçerliyse, axios interceptor refresh yapacak
+      // Bu durumda sadece durumu güncelle ve bekle
       setIsLoggedIn(false);
       setUser(null);
       setAuthChecked(true);
       return;
     }
 
+    // Access token geçerliyse profil bilgisini al
     const fetchProfile = async () => {
-      const res = await axios.get(`${API_URL}/users/me`);
-      setUser(res.data);
-      setIsLoggedIn(true);
-      setAuthChecked(true);
-    };
-
-    try {
-      await fetchProfile();
-    } catch (err) {
-      // 401 Unauthorized: Giriş yapmamış kullanıcı veya token süresi dolmuş
-      if (err.response?.status === 401) {
-        // Cookie veya localStorage'da refresh_token varsa yenileme dene
-        const hasRefreshTokenCookie = document.cookie.includes('refresh_token');
-        const hasRefreshTokenLocal = localStorage.getItem('refresh_token');
-        
-        if (hasRefreshTokenCookie || hasRefreshTokenLocal) {
-          try {
-            const refreshToken = localStorage.getItem('refresh_token') || 
-                                 document.cookie.split('; ').find(row => row.startsWith('refresh_token='))?.split('=')[1];
-            
-            if (refreshToken) {
-              // Token refresh dene
-              const refreshResponse = await axios.post(`${API_URL}/refresh`, {}, {
-                headers: {
-                  'Authorization': `Bearer ${refreshToken}`
-                }
-              });
-              
-              // Yeni token'ları kaydet
-              if (refreshResponse.data.access_token) {
-                localStorage.setItem('access_token', refreshResponse.data.access_token);
-              }
-              if (refreshResponse.data.refresh_token) {
-                localStorage.setItem('refresh_token', refreshResponse.data.refresh_token);
-              }
-              
-              // Profili tekrar al
-              await fetchProfile();
-              return;
-            }
-          } catch (refreshError) {
-            // Refresh de başarısız - token'ları temizle
-            localStorage.removeItem('access_token');
-            localStorage.removeItem('refresh_token');
-            // Sessizce devam et - normal bir durum
-          }
+      try {
+        const res = await axios.get(`${API_URL}/users/me`);
+        setUser(res.data);
+        setIsLoggedIn(true);
+        setAuthChecked(true);
+      } catch (err) {
+        // 401 hatası - axios interceptor zaten refresh deneyecek
+        // Burada tekrar refresh denememize gerek yok
+        if (err.response?.status === 401) {
+          setIsLoggedIn(false);
+          setUser(null);
+          setAuthChecked(true);
         }
       }
-      // Giriş yapılmamış durumda
+    };
+
+    await fetchProfile();
+  }, [isTokenValid, isRefreshTokenValid]);
+
+  // Sadece ilk yüklemede kontrol et
+  useEffect(() => {
+    // Token varsa ve geçerliyse kontrol et, yoksa direkt misafir kullanıcı olarak işaretle
+    const accessToken = localStorage.getItem('access_token');
+    if (accessToken && isTokenValid()) {
+      checkAuth();
+    } else {
+      // Token yoksa veya geçersizse direkt misafir kullanıcı olarak işaretle
+      // Gereksiz API çağrısı yapma
       setIsLoggedIn(false);
       setUser(null);
       setAuthChecked(true);
-    }
-  }, [isTokenValid]);
-
-  // Sadece ilk yüklemede ve token geçersizse kontrol et
-  useEffect(() => {
-    // İlk yüklemede veya token geçersizse kontrol et
-    if (!authChecked || !isTokenValid()) {
-      checkAuth();
     }
   }, []); // Sadece mount'ta çalışır
 
