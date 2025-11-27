@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, func, ForeignKey, Boolean
+from sqlalchemy import Column, Integer, String, Text, DateTime, func, ForeignKey, Boolean, Index
 from sqlalchemy.orm import relationship
 from .database import Base
 
@@ -6,16 +6,22 @@ class Ilan(Base):
     __tablename__ = 'ilanlar'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    ilan_no = Column(String(50), unique=True, nullable=False) # Benzersiz İlan No
-    baslik = Column(String(255))
-    sehir = Column(String(100))
+    ilan_no = Column(String(50), unique=True, nullable=False, index=True) # Benzersiz İlan No
+    baslik = Column(String(255), index=True)  # Arama performansı için index
+    sehir = Column(String(100), index=True)  # Filtreleme performansı için index
     ilce = Column(String(100))
     kurum = Column(String(255))
     ilan_turu = Column(String(100))
     metin = Column(Text) # Uzun metin
     link = Column(String(500))
-    yayin_tarihi = Column(String(50)) # İlanın yayınlanma tarihi
-    eklenme_tarihi = Column(DateTime, default=func.now())
+    yayin_tarihi = Column(String(50), index=True) # İlanın yayınlanma tarihi - sıralama için index
+    eklenme_tarihi = Column(DateTime, default=func.now(), index=True)  # Stats için index
+    
+    # Composite index'ler - çoklu sütun sorguları için
+    __table_args__ = (
+        Index('idx_sehir_yayin_tarihi', 'sehir', 'yayin_tarihi'),  # Şehir + tarih filtreleme
+        Index('idx_yayin_tarihi_id', 'yayin_tarihi', 'id'),  # Sıralama için
+    )
 
     # İlişki: Bir ilanın birden fazla analiz edilmiş borçlusu olabilir
     borclular = relationship("IlanBorclu", back_populates="ilan", cascade="all, delete-orphan")

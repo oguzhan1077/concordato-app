@@ -68,6 +68,25 @@ class IlanBase(BaseModel):
 class IlanCreate(IlanBase):
     pass
 
+class IlanListItem(BaseModel):
+    """
+    İlan listesi için optimize edilmiş schema - metin ve borclular dahil değil.
+    PERFORMANS: Büyük veri alanlarını (metin) ve ilişkileri (borclular) yüklemez.
+    """
+    id: int
+    ilan_no: str
+    baslik: Optional[str] = None
+    sehir: Optional[str] = None
+    ilce: Optional[str] = None
+    kurum: Optional[str] = None
+    ilan_turu: Optional[str] = None
+    link: Optional[str] = None
+    yayin_tarihi: Optional[str] = None
+    eklenme_tarihi: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
 class Ilan(IlanBase):
     id: int
     eklenme_tarihi: Optional[datetime] = None

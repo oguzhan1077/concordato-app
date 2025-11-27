@@ -263,5 +263,10 @@ async def refresh_access_token(request: Request, response: Response, db: Session
 
 @router.get("/users/me", response_model=schemas.User)
 async def read_users_me(current_user: models.User = Depends(get_current_user)):
+    """
+    Kullanıcı bilgilerini döndürür.
+    PERFORMANS: get_current_user zaten kullanıcıyı veritabanından çekiyor,
+    bu endpoint sadece mevcut kullanıcıyı döndürür (ek sorgu yok).
+    """
     return current_user
 

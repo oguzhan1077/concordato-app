@@ -4,7 +4,7 @@ from fastapi import FastAPI, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, load_only
 from sqlalchemy import func
 from typing import List, Optional
 from fastapi.middleware.cors import CORSMiddleware
@@ -112,7 +112,7 @@ DEFAULT_PAGE_LIMIT = 20  # Varsayılan limit
 MIN_PAGE_LIMIT = 1  # Minimum limit
 
 class IlanListResponse(BaseModel):
-    items: List[schemas.Ilan]
+    items: List[schemas.IlanListItem]  # PERFORMANS: Metin ve borclular olmadan
     total: int
     page: int
     page_size: int
@@ -162,12 +162,30 @@ def get_ilanlar(
     """
     İlanları sayfalı olarak getirir.
     
+    PERFORMANS:
+    - Metin ve borclular alanları yüklenmez (sadece detay sayfasında)
+    - Sadece gerekli kolonlar seçilir (load_only ile)
+    
     Güvenlik:
     - limit maksimum 100 ile sınırlıdır (DoS koruması)
     - skip negatif olamaz
     - Tarih filtreleme veritabanı seviyesinde yapılır (performans)
     """
-    query = db.query(models.Ilan)
+    # PERFORMANS: Sadece listeleme için gerekli alanları seç
+    query = db.query(models.Ilan).options(
+        load_only(
+            models.Ilan.id,
+            models.Ilan.ilan_no,
+            models.Ilan.baslik,
+            models.Ilan.sehir,
+            models.Ilan.ilce,
+            models.Ilan.kurum,
+            models.Ilan.ilan_turu,
+            models.Ilan.link,
+            models.Ilan.yayin_tarihi,
+            models.Ilan.eklenme_tarihi
+        )
+    )
     
     # Şehir filtresi
     if sehir and sehir != "Tümü":
@@ -176,11 +194,12 @@ def get_ilanlar(
     # Arama filtresi
     if search:
         # SQL injection koruması için parametreli sorgu kullanılıyor
+        # PERFORMANS: metin.like() çok yavaş olduğu için sadece baslik ve ilan_no'da arama yapıyoruz
+        # Index'li alanlarda arama yaparak performansı artırıyoruz
         search_term = f"%{search[:200]}%"  # Maksimum 200 karakter
         query = query.filter(
             (models.Ilan.baslik.like(search_term)) | 
-            (models.Ilan.ilan_no.like(search_term)) |
-            (models.Ilan.metin.like(search_term))
+            (models.Ilan.ilan_no.like(search_term))
         )
     
     # Tarih filtreleme - Veritabanı seviyesinde yapılıyor
@@ -192,6 +211,7 @@ def get_ilanlar(
         MAX_DATE_FILTER_RECORDS = 10000
         
         # Önce tarihe göre sıralı kayıtları çek (sınırlı)
+        # PERFORMANS: Tarih filtreleme için sadece gerekli alanları yükle
         temp_query = query.order_by(models.Ilan.yayin_tarihi.desc(), models.Ilan.id.desc())
         temp_ilanlar = temp_query.limit(MAX_DATE_FILTER_RECORDS).all()
         
@@ -225,11 +245,16 @@ def get_ilanlar(
         ilanlar = filtered_ilanlar[skip:skip+limit]
     else:
         # Tarih filtresi yoksa veritabanı seviyesinde pagination
-        total = query.count()
-        ilanlar = query.order_by(
+        # PERFORMANS: count() işlemi index'lerle hızlanacak
+        # Önce sıralı sorguyu hazırla (index kullanımı için)
+        ordered_query = query.order_by(
             models.Ilan.yayin_tarihi.desc(), 
             models.Ilan.id.desc()
-        ).offset(skip).limit(limit).all()
+        )
+        # Toplam sayıyı hesapla (index'lerle optimize edilmiş)
+        total = ordered_query.count()
+        # Sayfalama ile ilanları çek
+        ilanlar = ordered_query.offset(skip).limit(limit).all()
     
     # Sayfa hesaplamaları - division by zero koruması
     page = (skip // limit) + 1 if limit > 0 else 1
@@ -245,7 +270,14 @@ def get_ilanlar(
 
 @app.get("/ilanlar/{ilan_id}", response_model=schemas.Ilan)
 def get_ilan_detay(ilan_id: int, db: Session = Depends(get_db)):
-    ilan = db.query(models.Ilan).filter(models.Ilan.id == ilan_id).first()
+    """
+    İlan detayını getirir. Metin ve borclular dahil tüm bilgileri içerir.
+    PERFORMANS: Borclular eager load edilir (N+1 query problemini önler).
+    """
+    # PERFORMANS: Borclular'ı eager load et (N+1 query problemini önler)
+    ilan = db.query(models.Ilan).options(
+        joinedload(models.Ilan.borclular)
+    ).filter(models.Ilan.id == ilan_id).first()
     if ilan is None:
         raise HTTPException(status_code=404, detail="İlan bulunamadı")
     return ilan
@@ -281,6 +313,7 @@ def get_sehirler(db: Session = Depends(get_db)):
 def get_gunluk_ilanlar(db: Session = Depends(get_db)):
     """
     İçinde bulunduğumuz ayın günlük ilan sayılarını döndürür.
+    PERFORMANS: Sadece yayin_tarihi alanını çekerek bellek kullanımını minimize ediyoruz.
     """
     from datetime import datetime
     from collections import defaultdict
@@ -289,18 +322,21 @@ def get_gunluk_ilanlar(db: Session = Depends(get_db)):
     bugun = datetime.now()
     ayin_ilk_gunu = datetime(bugun.year, bugun.month, 1)
     
-    # Tüm ilanları çek
-    ilanlar = db.query(models.Ilan).all()
+    # PERFORMANS İYİLEŞTİRMESİ: Tüm ilanları çekmek yerine sadece yayin_tarihi alanını çek
+    # Bu, büyük metin alanlarını (metin, baslik vb.) çekmemizi engelleyerek bellek ve ağ trafiğini azaltır
+    ilan_tarihleri = db.query(models.Ilan.yayin_tarihi).filter(
+        models.Ilan.yayin_tarihi.isnot(None)
+    ).all()
     
     # Günlere göre grupla
     gunluk_sayilar = defaultdict(int)
     
-    for ilan in ilanlar:
-        if not ilan.yayin_tarihi:
+    for (yayin_tarihi,) in ilan_tarihleri:
+        if not yayin_tarihi:
             continue
         
         # Tarihi parse et
-        tarih = parse_tarih(ilan.yayin_tarihi)
+        tarih = parse_tarih(yayin_tarihi)
         if not tarih:
             continue
         
