@@ -27,7 +27,7 @@ function IlanList() {
     fetchData();
     fetchStats();
     fetchSehirler();
-  }, [filterSehir, currentPage, baslangicTarihi, bitisTarihi, search]);
+  }, [filterSehir, currentPage, baslangicTarihi, bitisTarihi]);
 
   useEffect(() => {
     fetchGunlukIlanlar();

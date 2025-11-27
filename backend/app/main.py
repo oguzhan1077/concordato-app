@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 from sqlalchemy.orm import Session, joinedload, load_only
-from sqlalchemy import func
+from sqlalchemy import func, exists
 from typing import List, Optional
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -199,12 +199,18 @@ def get_ilanlar(
     # Arama filtresi
     if search:
         # SQL injection koruması için parametreli sorgu kullanılıyor
-        # PERFORMANS: metin.like() çok yavaş olduğu için sadece baslik ve ilan_no'da arama yapıyoruz
+        # PERFORMANS: metin.like() çok yavaş olduğu için sadece baslik, ilan_no ve borclu_adi'de arama yapıyoruz
         # Index'li alanlarda arama yaparak performansı artırıyoruz
         search_term = f"%{search[:200]}%"  # Maksimum 200 karakter
+        # Borçlu adlarında arama yapmak için exists() kullanıyoruz
+        borclu_arama = exists().where(
+            (models.IlanBorclu.ilan_id == models.Ilan.id) &
+            (models.IlanBorclu.borclu_adi.like(search_term))
+        )
         query = query.filter(
             (models.Ilan.baslik.like(search_term)) | 
-            (models.Ilan.ilan_no.like(search_term))
+            (models.Ilan.ilan_no.like(search_term)) |
+            borclu_arama
         )
     
     # Tarih filtreleme - Veritabanı seviyesinde yapılıyor
