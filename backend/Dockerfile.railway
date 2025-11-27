@@ -15,10 +15,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Backend klasörünü kopyala (Railway build context root'ta)
 COPY backend/ .
 
+# Entrypoint script'ini çalıştırılabilir yap
+RUN chmod +x entrypoint.sh
+
 # FastAPI port (Railway otomatik PORT set eder)
 EXPOSE 8000
 
-# API'yi başlat (Railway PORT environment variable'ını kullan)
-# Railway otomatik olarak PORT environment variable'ını set eder
-CMD sh -c "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"
+# Entrypoint script'ini kullan (PORT environment variable'ını düzgün handle eder)
+ENTRYPOINT ["./entrypoint.sh"]
 
