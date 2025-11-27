@@ -172,6 +172,7 @@ def get_ilanlar(
     - Tarih filtreleme veritabanı seviyesinde yapılır (performans)
     """
     # PERFORMANS: Sadece listeleme için gerekli alanları seç
+    # Borçlu bilgilerini de yükle (sadece borclu_adi alanı)
     query = db.query(models.Ilan).options(
         load_only(
             models.Ilan.id,
@@ -184,6 +185,10 @@ def get_ilanlar(
             models.Ilan.link,
             models.Ilan.yayin_tarihi,
             models.Ilan.eklenme_tarihi
+        ),
+        joinedload(models.Ilan.borclular).load_only(
+            models.IlanBorclu.id,
+            models.IlanBorclu.borclu_adi
         )
     )
     

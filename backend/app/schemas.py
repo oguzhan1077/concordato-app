@@ -68,10 +68,20 @@ class IlanBase(BaseModel):
 class IlanCreate(IlanBase):
     pass
 
+class IlanBorcluListItem(BaseModel):
+    """
+    İlan listesi için minimal borçlu bilgisi - sadece adı gösterilir.
+    """
+    id: int
+    borclu_adi: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
 class IlanListItem(BaseModel):
     """
-    İlan listesi için optimize edilmiş schema - metin ve borclular dahil değil.
-    PERFORMANS: Büyük veri alanlarını (metin) ve ilişkileri (borclular) yüklemez.
+    İlan listesi için optimize edilmiş schema - metin dahil değil ama borçlu adları dahil.
+    PERFORMANS: Büyük veri alanlarını (metin) yüklemez ama borçlu adlarını yükler.
     """
     id: int
     ilan_no: str
@@ -83,6 +93,7 @@ class IlanListItem(BaseModel):
     link: Optional[str] = None
     yayin_tarihi: Optional[str] = None
     eklenme_tarihi: Optional[datetime] = None
+    borclular: List[IlanBorcluListItem] = []
 
     class Config:
         from_attributes = True
