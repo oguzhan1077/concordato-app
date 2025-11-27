@@ -82,3 +82,4 @@ RAILWAY_PUBLIC_DOMAIN=concordato-app-production.up.railway.app  # CSP için Rail
 3. Browser DevTools > Network sekmesinde response header'larını kontrol edin
 4. Güvenlik header'larının göründüğünü doğrulayın
 
+

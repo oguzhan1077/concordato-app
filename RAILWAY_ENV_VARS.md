@@ -57,3 +57,4 @@ VITE_API_URL=https://concordato-app-production.up.railway.app
    - Authorization header'da token olmalı
    - 200 OK dönmeli
 
+
